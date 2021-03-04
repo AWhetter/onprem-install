@@ -13,6 +13,7 @@ cd $OPI_DATA
 
 if [ "$1" == start ]; then
 	./codestream --start
+	[ ! -f $OPI_LOGS/init.log ] && ./codestream --logtail 10000 >$OPI_LOGS/init.log
 elif [ "$1" == stop ]; then
 	./codestream --stop
 fi

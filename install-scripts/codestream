@@ -29,6 +29,7 @@ Usage:
 
   Maintenance and Support
     $cmd --logs { Nh | Nm }                                 # collect last N hours or minutes of logs
+    $cmd --logtail [N]                                      # quick tail of all service logs (N lines)
     $cmd --apply-support-pkg <support-pkg>                  # apply the codestream-provided support package
     $cmd --create-mst-app-pkg <app-id> <public-api-host>    # create a custom MST App Package
     $cmd --repair-db <repair-script.js>                     # run mongo repair commands
