@@ -95,10 +95,12 @@ function check_env {
 
 function get_uuid {
 	local uuid
+	[ -z "$CS_INSTALL_FROM_PKG" ] && [ -f $CS_ROOT/.UUID ] && cat $CS_ROOT/.UUID && return
+	which uuidgen >/dev/null 2>&1 && { uuidgen -t && return || exit 1; }
+	which uuid >/dev/null 2>&1 && { uuid && return || exit 1; }
 	# curl -s https://www.uuidtools.com/api/decode/9084b876-4209-4e84-91d4-a7221c63ad65 | python3 -m json.tool
-	[ -z "$CS_INSTALL_FROM_PKG" ] && uuid=$(curl -s https://www.uuidtools.com/api/generate/timestamp-first|cut -f2 -d'"') || uuid=$(cat $CS_ROOT/.UUID)
-	[ -z "$uuid" ] && echo "unable to generate an installation ID" >&2 && exit 1
-	echo $uuid
+	curl -s https://www.uuidtools.com/api/generate/timestamp-first|cut -f2 -d'"' || exit 1
+	return
 }
 
 function guess_primary_ip {
