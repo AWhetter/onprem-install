@@ -1,5 +1,12 @@
 # Change Log
 
+## [8.2.19] - 2021-3-5
+
+### Added
+
+- Adds a new Admin service that provides onprem admins a tool for managing the configuration
+- Adds a new weekly email covering you and your team's activity
+
 ## [8.2.18] - 2021-2-17
 
 ### Added
