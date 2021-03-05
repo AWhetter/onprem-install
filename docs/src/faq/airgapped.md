@@ -17,7 +17,7 @@ disk space in order to package everything up.
 
 1.	Download the CodeStream On-Prem package builder script.
 	```
-	curl -s https://raw.githubusercontent.com/TeamCodeStream/onprem-install/offline-install/install-scripts/util/build-pkg -o build-pkg
+	curl -s https://raw.githubusercontent.com/TeamCodeStream/onprem-install/master/install-scripts/util/build-pkg -o build-pkg
 	chmod +x build-pkg
 	```
 
