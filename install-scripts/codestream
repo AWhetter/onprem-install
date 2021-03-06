@@ -575,12 +575,12 @@ function quickstart {
 	do
 		case $1 in
 			--topology)
-				[ "$2" == hostname ] && _fqdn=`hostname`
-				[ "$2" == ip ] && _fqdn=$(guess_primary_ip)
+				[ "$2" == hostname ] && _fqhn=`hostname`
+				[ "$2" == ip ] && _fqhn=$(guess_primary_ip)
 				[ -z "$2"  -o  \( "$2" != "ip"  -a  "$2" != "hostname" \) ] && echo "bad usage. Specify a 'hostname' or 'ip' topology." && exit 1
 				shift 2;;
 			--public-host)
-				[ _fqdn == ip ] && _fqdn=$(guess_primary_ip) || _fqdn=$2
+				[ _fqhn == ip ] && _fqhn=$(guess_primary_ip) || _fqhn=$2
 				apiEnv="$apiEnv --env CS_API_SET_PUBLIC_HOST=$2"
 				shift 2;;
 			--api-port) _apiPublicPort=$2; apiEnv="$apiEnv --env CS_API_SET_PUBLIC_PORT=$2"; shift 2;;
