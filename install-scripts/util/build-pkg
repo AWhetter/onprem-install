@@ -39,12 +39,14 @@ echo $uuid >.UUID
 cp .onprem-install/docs/src/assets/terms.txt terms.txt || exit 1
 
 # download the docker containers and save them
+opadmRepo=""
 apiRepo=""
 broadcasterRepo=""
 mailoutRepo=""
 rabbitmqRepo=""
 pythonRepo=""
 . .onprem-install/versions/preview-single-host.ver || exit 1
+[ -z "$opadmRepo" ] && apiRepo="teamcodestream/opadm-onprem"
 [ -z "$apiRepo" ] && apiRepo="teamcodestream/api-onprem"
 [ -z "$broadcasterRepo" ] && broadcasterRepo="teamcodestream/broadcaster-onprem"
 [ -z "$mailoutRepo" ] && mailoutRepo="teamcodestream/mailout-onprem"
@@ -52,6 +54,7 @@ pythonRepo=""
 [ -z "$pythonRepo" ] && pythonRepo="teamcodestream/dt-python3"
 
 echo "Downloading docker images"
+docker pull $opadmRepo:$opadmDockerVersion || exit 1
 docker pull $apiRepo:$apiDockerVersion || exit 1
 docker pull $broadcasterRepo:$broadcasterDockerVersion || exit 1
 docker pull $mailoutRepo:$mailoutDockerVersion || exit 1
@@ -63,6 +66,8 @@ echo -n "saving docker images...api..."
 docker save -o .docker-images/api.$apiDockerVersion.docker $apiRepo:$apiDockerVersion || exit 1
 echo -n "broadcaster..."
 docker save -o .docker-images/broadcaster.$broadcasterDockerVersion.docker $broadcasterRepo:$broadcasterDockerVersion || exit 1
+echo -n "admin..."
+docker save -o .docker-images/opadm.$opadmDockerVersion.docker $opadmRepo:$opadmDockerVersion || exit 1
 echo -n "outbound-email..."
 docker save -o .docker-images/mailout.$mailoutDockerVersion.docker $mailoutRepo:$mailoutDockerVersion || exit 1
 echo -n "rabbitMQ..."
