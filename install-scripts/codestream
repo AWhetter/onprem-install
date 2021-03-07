@@ -399,6 +399,13 @@ function docker_status {
 	docker ps -a|egrep -e '[[:blank:]]cs|NAME'
 	echo
 	docker volume ls -f name=csmongodata
+	if [ -f $CS_ROOT/.status-urls ]; then
+		. $CS_ROOT/.status-urls
+		echo
+		echo "api         : $apiUrl [`curl -s $apiUrl/no-auth/status`]"
+		echo "admin       : $adminUrl [`curl -s $adminUrl/api/no-auth/status`]"
+		echo "broadcaster : $bcastUrl [`curl -s $bcastUrl/no-auth/status`]"
+	fi
 }
 
 # start up a container regardless if it already exists
@@ -565,7 +572,8 @@ function quickstart {
 	local _apiPublicPort=80
 	local _bcastPort=12080
 	local _adminPort=8080
-	local _fqhn=`hostname` # hostname is the default topology
+	# local _fqhn=`hostname` # hostname is the default topology
+	local _fqhn=$(guess_primary_ip) # ip address is the default topology
 	local _mongoUrl=mongodb://localhost/codestream
 	local interactive=1
 	local _x
@@ -576,7 +584,7 @@ function quickstart {
 		case $1 in
 			--topology)
 				[ "$2" == hostname ] && _fqhn=`hostname`
-				[ "$2" == ip ] && _fqhn=$(guess_primary_ip)
+				# [ "$2" == ip ] && _fqhn=$(guess_primary_ip)
 				[ -z "$2"  -o  \( "$2" != "ip"  -a  "$2" != "hostname" \) ] && echo "bad usage. Specify a 'hostname' or 'ip' topology." && exit 1
 				shift 2;;
 			--public-host)
@@ -605,6 +613,11 @@ If this is not what you want, press CTRL-C and specify additional options:   $0 
 "
 	[ $interactive -eq 1 ] && { echo -n "Press ENTER to continue..." && read _x; } || echo "interactive mode disabled...continuing..."
 
+	cat >$CS_ROOT/.status-urls <<EOF
+apiUrl="http://$_fqhn:$_apiPublicPort"
+bcastUrl="http://$_fqhn:$_bcastPort"
+adminUrl="http://$_fqhn:$_adminPort"
+EOF
 	echo $_mongoUrl >$CS_ROOT/mongo.url
 	export CS_MONGO_URL=$_mongoUrl
 	export CS_USE_ADMIN=1
