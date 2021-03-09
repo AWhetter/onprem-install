@@ -1,6 +1,12 @@
 # Change Log
 
-## [8.2.19] - 2021-3-5
+## [8.2.21] - 2021-3-9
+
+### Added
+
+- Adds backend support for prompting you to review a teammate's commits when you pull
+
+## [8.2.20] - 2021-3-7
 
 ### Added
 
