@@ -1,7 +1,7 @@
 apiDockerVersion="8.2.29-206"
 broadcasterDockerVersion="8.2.28-76"
 dtPython3DockerVersion="0.0.0"
-mailoutDockerVersion="8.2.26-77"
+mailoutDockerVersion="8.2.27-78"
 mongoDockerVersion="3.4.9"
 onPremVersion="8.2.20"
 opadmDockerVersion="8.2.3-11"
