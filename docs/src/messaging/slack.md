@@ -41,43 +41,26 @@ Slack.
 		available). Since you won't be submitting the App to the Slack App
 		directory, these values don't really matter.
 
-1. Update your CodeStream services configuration file.
+1. Update your CodeStream configuration.
+	<br />
 	*	Go to your [Slack App configuration](https://api.slack.com/apps), navigate
 		to the **Basic Information** page and take note of the 4 identifiers and
 		secrets of your slack app.
-		![slack app ids](../assets/images/slack-app-ids.png)
-	*	Make a backup copy of your codestream services config file.
-		```
-		$ cp ~/.codestream/codestream-services-config.json ~/.codestream/codestream-services-config.json.backup
-		```
-	*	Add these secrets in a Slack configuration section in your codestream
-		config file (~/.codestream/codestream-services-config.json). _Make sure
-		you add your app's ids and secrets to all 3 categories (app, appSharing &
-		appStrict; 12 properties in all)_.
-		```
-		"integrations": {
-				"slack": {
-						"cloud": {
-								"appClientId": "<your-slack-app-client-id>",
-								"appClientSecret": "<your-slack-app-client-secret>",
-								"appId": "<your-slack-app-id>",
-								"appSharingClientId": "<your-slack-app-client-id>",
-								"appSharingClientSecret": "<your-slack-app-client-secret>",
-								"appSharingId": "<your-slack-app-id>",
-								"appSharingSigningSecret": "<your-slack-app-signing-secret>",
-								"appSigningSecret": "<your-slack-app-signing-secret>",
-								"appStrictClientId": "<your-slack-app-client-id>",
-								"appStrictClientSecret": "<your-slack-app-client-secret>",
-								"appStrictId": "<your-slack-app-id>",
-								"appStrictSigningSecret": "<your-slack-app-signing-secret>",
-								"interactiveComponentsEnabled": false
-						}
-				}
-		}
-		```
+		<img src="../assets/images/slack-app-ids.png" height="350" />
+		<!-- ![slack app ids](../assets/images/slack-app-ids.png) -->
 
-1.  Restart your CodeStream services.
+	*	Using your web browser, launch the Admin App (usually on port 8080 or 8443
+		on your CodeStream On-Prem server). Login if need be.
 
+    *   Navigate to the **Configuration > Integrations** pane, open the Slack
+        messaging integration accordion and add the app data.
+		<img src="../assets/images/adminapp/orig/CfgIntSlack.png" height="350" />
+
+	*	After making your edits, [follow these instructions to save your
+		changes](../adminapp/#saving-and-activating-changes) and **make sure you
+		activate the new configuration**.
+
+	*	Finally, [restart the services](../configs/single-host-linux/#retart-the-services).
 
 ## Add Interactive Components access for your CodeStream Slack App
 
@@ -96,8 +79,8 @@ you should know the public fully qualified public facing hostname which you'll
 need for the next step.
 
 1.  Complete the [section
-	above](#slack-access-without-a-publicly-accessible-codestream-api) but don't
-	restart your services yet.
+    above](#slack-access-without-a-publicly-accessible-codestream-api), save &
+    activate the configuration but don't restart your services yet.
 
 1.	Add the Interactive Callback To Your Slack App
 
@@ -109,7 +92,7 @@ need for the next step.
 
     ![slack callback](../assets/images/slack-app-callback.png)
 
-1.	Restart your CodeStream services.
+1.	Now restart your CodeStream services as specified above.
 
 **You're Done!** CodeStream users can share their codemarks with Slack and Slack
 users can now participate in codemark discussions by pressing the `View

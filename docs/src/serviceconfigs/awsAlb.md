@@ -88,30 +88,21 @@ EC2 Console for the load balancer itself.  You may wish to create a DNS entry in
 your company's DNS map (Route 53) as an Alias for the load balancer. You'll need
 it to complete the configuration.
 
-### Modify the CodeStream Config File and Restart
+### Modify the CodeStream Configuration and Restart
 
-1.	On the host OS, stop codestream (**~/.codestream/codestream --stop**).
+1.  Using your web browser, launch the Admin App (usually on port 8080 or 8443
+    on your CodeStream On-Prem server). Login if need be.
 
-1.  and bring up the config file,
-    **~/.codestream/codestream-services-config.json**, in an editor (it would be
-    wise to make a copy of the file before you edit it). Change the following
-    properties:
-	```
-	{
-		"apiServer": {
-			"publicApiUrl": "http://my-load-balancer-name.mycompany.com"
-		},
-		...
-		"broadcastEngine": {
-			"codestreamBroadcaster": {
-				"host": "my-load-balancer-name.mycompany.com"
-			}
-		},
-		...
-	}
-	```
+1.  Navigate to the **Configuration > Topology** pane and make your changes.
+    <img src="../assets/images/adminapp/orig/CfgTopology.png" height="350" />
+    Make sure the **Public API port** matches the load balancer while the **API
+    Port** specifies the port used on the On-Prem server (listerner target).
 
-1.  Restart codestream (**~/.codestream/codestream --start**).
+1.  After making your edits, [follow these instructions to save your
+    changes](../adminapp/#saving-and-activating-changes) and **make sure you
+    activate the new configuration**.
+
+1.  Finally, [restart the services](../configs/single-host-linux/#retart-the-services).
 
 ### Register the CodeStream instance with the Target Groups
 
@@ -175,41 +166,14 @@ The CodeStream control script can create the key and certificate but you must
 have **openssl** installed on the host OS. It's usually pre-installed on Amazon
 Linux but packages exist for all Linux distributions.
 
-1.  With **openssl** installed on the host OS, create a key and self-signed
-    certicicate with this command:
-	```
-	~/.codestream/codestream --make-self-signed-cert
-	```
+To create your own self-signed cert using the codestream script, with
+**openssl** installed on the host OS, run this command:
+```
+~/.codestream/codestream --make-self-signed-cert
+```
 
-1.  Stop codestream (**~/.codestream/codestream --stop**) and bring up the
-    config file, **~/.codestream/codestream-services-config.json**, in an editor
-    (it would be wise to make a copy of the file before you edit it). Change the
-    following properties:
-	```
-	{
-		"apiServer": {
-			"ignoreHttps": false,
-			"port": 443,
-			"publicApiUrl": "https://my-load-balancer-name.mycompany.com"
-		},
-		...
-		"broadcastEngine": {
-			"codestreamBroadcaster": {
-				"host": "my-load-balancer-name.mycompany.com",
-				"ignoreHttps": false,
-				"port": 12443
-			}
-		},
-		...
-		"ssl": {
-			"certfile": "/opt/config/cert.pem",
-			"keyfile": "/opt/config/key.pem"
-		},
-		...
-	}
-	```
-
-1.  Restart codestream (**~/.codestream/codestream --start**)
+Once you have your key and certificate (and optional bundle file), [follow these
+steps to install it](ssl) and restart.
 
 ### Register the CodeStream instance with the Target Groups
 

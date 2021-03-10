@@ -79,30 +79,21 @@ CodeStream with Okta and click the green **Done** button.
 ![Okta Assignments](../assets/images/okta/08b User Assignments.png)
 
 
-## Update the CodeStream Config and Restart
+## Update your CodeStream configuration and Restart
 
-Finally, Add the following section to your
-**~/.codestream/codestream-services-config.json** file use the Client ID and
-Client Secret you took note of in a previous step. Make a backup of this file
-_before_ you add the new information, just in case something goes wrong you'll
-be able to back out your change by putting the backup in place.
-```
-	"integrations": {
-		"okta": {
-			"localInstallation": {
-				"appClientId": "-- Client ID goes here --",
-				"appClientSecret": "-- Client Secret goes here --"
-			}
-		},
-		...
-	},
-	...
-```
+*	Using your web browser, launch the Admin App (usually on port 8080 or 8443
+	on your CodeStream On-Prem server). Login if need be.
 
-After you make that change, restart CodeStream
-```
-~/.codestream/codestream --restart
-```
+*   Navigate to the **Configuration > Integrations** pane, open the Okta
+    integration accordion and add the app data.
+
+	<img src="../assets/images/adminapp/orig/CfgIntOkta.png" height="350" />
+
+*	After making your edits, [follow these instructions to save your
+	changes](../adminapp/#saving-and-activating-changes) and **make sure you
+	activate the new configuration**.
+
+*	Finally, [restart the services](../configs/single-host-linux/#retart-the-services).
 
 Instruct your users to _Reload_ their IDEs. They should now be able to
 authenticate with Okta.

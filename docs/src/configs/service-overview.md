@@ -25,6 +25,10 @@ These services are:
 1.  The **Outbound Email service** generates email messages and passes them to
     whichever email system you've configured for outbound email delivery.
 
+1.  The **Admin App and server** monitor the system's health, provide a
+    configuration editor and supply useful information about the installation,
+    license and support details.
+
 1.  **RabbitMQ** provides a queuing mechanism used between the backend services
     to communicate tasks.
 

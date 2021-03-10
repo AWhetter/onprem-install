@@ -14,7 +14,9 @@ and authorize this app for it.
 [Login to Azure DevOps](https://devops.azure.com). Once logged in, click on this
 link to [register a new app](https://app.vsaex.visualstudio.com/app/register).
 
-![create rest api app](../assets/images/issue/azuredevops/02 Create App.png)
+<img src="../assets/images/issue/azuredevops/02 Create App.png" height="350" />
+<!-- ![create rest api app](../assets/images/issue/azuredevops/02 Create App.png) -->
+<br />
 
 Complete all the required fields. Make sure the **Identity (read)** and **Work
 Items (read and write)** scopes are checked. _NOTE: You cannot change the scopes
@@ -24,36 +26,30 @@ On-Prem hostname with this path:
 Once the form is complete, Click the **Register** button at the bottom of the
 page.
 
-## Update the CodeStream Config and Restart
+## Get the App Credentials
 
 After you register the app, you'll be presented with a page similar to this.
 
 ![New REST App](../assets/images/issue/azuredevops/03 Get Secrets.png)
 
 Take note of the **App ID** and **Client Secret** (do not confuse this with the
-App Secret which is not needed; click the **show** button for this). Then update
-your codestream config file, **~/.codestream/codestream-services-config.json**,
-by adding the following section. The client secret is a very long string. Make
-sure you do not add any characters (including carriage returns / newlines)
-within the double quotes.
+App Secret which is not needed; click the **show** button for this).
 
-```
-	"integrations": {
-		"devops": {
-			"cloud": {
-				"appClientId": "-- App ID goes here --",
-				"appClientSecret": "-- Client Secret goes here --"
-			}
-		},
-		...
-	},
-	...
-```
+## Update your CodeStream configuration and Restart
 
-After you make that change, restart CodeStream
-```
-~/.codestream/codestream --restart
-```
+*	Using your web browser, launch the Admin App (usually on port 8080 or 8443
+	on your CodeStream On-Prem server). Login if need be.
+
+*   Navigate to the **Configuration > Integrations** pane, open the DevOps
+	integration accordion and add the app data.
+
+	<img src="../assets/images/adminapp/orig/CfgIntAzure.png" height="350" />
+
+*	After making your edits, [follow these instructions to save your
+	changes](../adminapp/#saving-and-activating-changes) and **make sure you
+	activate the new configuration**.
+
+*	Finally, [restart the services](../configs/single-host-linux/#retart-the-services).
 
 Instruct your users to _Reload_ their IDEs. They should now be able to connect
 to Azure DevOps.

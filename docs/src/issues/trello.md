@@ -22,28 +22,22 @@ this path:
 `https://codestream-onprem.mycompany.com/no-auth/provider-token/trello`
 
 
-## Update the CodeStream Config and Restart
+## Update your CodeStream configuration and Restart
 
-Update your codestream config file,
-**~/.codestream/codestream-services-config.json**, by adding the following
-section.
+*	Using your web browser, launch the Admin App (usually on port 8080 or 8443
+	on your CodeStream On-Prem server). Login if need be.
 
-```
-	"integrations": {
-		"trello": {
-			"cloud": {
-				"apiKey": "-- Developer Key goes here --"
-			}
-		},
-		...
-	},
-	...
-```
+*   Navigate to the **Configuration > Integrations** pane, open the Trello
+    integration accordion and add the app data.
 
-After you make that change, restart CodeStream
-```
-~/.codestream/codestream --restart
-```
+	<img src="../assets/images/adminapp/orig/CfgIntTrello.png" height="350" />
+
+*	After making your edits, [follow these instructions to save your
+	changes](../adminapp/#saving-and-activating-changes) and **make sure you
+	activate the new configuration**.
+
+*	Finally, [restart the services](../configs/single-host-linux/#retart-the-services).
+
 
 Instruct your users to _Reload_ their IDEs. They should now be able to connect
 to Trello.

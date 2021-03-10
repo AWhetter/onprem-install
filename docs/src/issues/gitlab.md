@@ -27,35 +27,27 @@ company's CodeStream On-Prem hostname with this path:
 
 When you're done, click the **Save application** button.
 
-
-## Update the CodeStream Config and Restart
-
 After you create the application, click on it in the list to expose the
-application ID and secret.
+application ID and secret. You'll need it for the next step.
 
 ![AppID and Secret](../assets/images/issue/gitlab/03 AppID and Secret.png)
 
-Then update your codestream config file,
-**~/.codestream/codestream-services-config.json**, by adding the following
-section.
+## Update your CodeStream configuration and Restart
 
-```
-	"integrations": {
-		"gitlab": {
-			"cloud": {
-				"appClientId": "-- App ID goes here --",
-				"appClientSecret": "-- Secret goes here --"
-			}
-		},
-		...
-	},
-	...
-```
+*	Using your web browser, launch the Admin App (usually on port 8080 or 8443
+	on your CodeStream On-Prem server). Login if need be.
 
-After you make that change, restart CodeStream
-```
-~/.codestream/codestream --restart
-```
+*   Navigate to the **Configuration > Integrations** pane, open the Gitlab
+    integration accordion and add the app data.
+
+	<img src="../assets/images/adminapp/orig/CfgIntGitlab.png" height="350" />
+
+*	After making your edits, [follow these instructions to save your
+	changes](../adminapp/#saving-and-activating-changes) and **make sure you
+	activate the new configuration**.
+
+*	Finally, [restart the services](../configs/single-host-linux/#retart-the-services).
+
 
 Instruct your users to _Reload_ their IDEs. They should now be able to connect
 to Gitlab.

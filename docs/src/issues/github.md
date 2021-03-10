@@ -32,35 +32,26 @@ this path:
 
 Then press the **Register application** button.
 
-
-## Update the CodeStream Config and Restart
-
 After you register the application, click on it to expose the client ID and
-client secret.
+client secret. You'll need it for the next step.
 
 ![clientID and Secret](../assets/images/issue/github/05 Client ID and Secret.png)
 
-Then update your codestream config file,
-**~/.codestream/codestream-services-config.json**, by adding the following
-section.
+## Update your CodeStream configuration and Restart
 
-```
-	"integrations": {
-		"github": {
-			"cloud": {
-				"appClientId": "-- Client ID goes here --",
-				"appClientSecret": "-- Client Secret goes here --"
-			}
-		},
-		...
-	},
-	...
-```
+*	Using your web browser, launch the Admin App (usually on port 8080 or 8443
+	on your CodeStream On-Prem server). Login if need be.
 
-After you make that change, restart CodeStream
-```
-~/.codestream/codestream --restart
-```
+*   Navigate to the **Configuration > Integrations** pane, open the bitbucket
+    integration accordion and add the app data.
+
+	<img src="../assets/images/adminapp/orig/CfgIntGithub.png" height="350" />
+
+*	After making your edits, [follow these instructions to save your
+	changes](../adminapp/#saving-and-activating-changes) and **make sure you
+	activate the new configuration**.
+
+*	Finally, [restart the services](../configs/single-host-linux/#retart-the-services).
 
 Instruct your users to _Reload_ their IDEs. They should now be able to connect
 to Github.

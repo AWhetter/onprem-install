@@ -13,47 +13,22 @@ collect some characteristics of the action. For example, did the code review
 include unsaved changes, from where in the UI was the codemark initiated, or was
 the codemark shared to Slack or Teams.
 
-**Telemetry does currently include users' email addresses.** We will look to
-anonymize this for on-prem customers in the near future, but for now if you
-aren’t comfortable with email addresses being included you can turn off
-telemetry simply by removing this section from the config file,
-**~/.codestream/codestream-services-config.json**, and restarting CodeStream.
-When you remove this section, ensure that proper JSON syntax is followed. For
-example, if this is the last section of the file then you'll need to remove the
-**comma** at the end of the preceding section.
-
-```
-	"telemetry": {
-		"segment": {
-			"token": "---codestream-telemetry-token---",
-			"webToken": "---codestream-telemetry-web-token---"
-		}
-	}
-```
-
+**Telemetry does include users' email addresses.** We will look to anonymize
+this for on-prem customers in the near future, but for now if you aren’t
+comfortable with email addresses being included you can turn off telemetry using
+the Admin App. See below for more info.
 ## Nightly Phone Home
 
 On-prem installations ping CodeStream on a nightly basis with summary
 information about your installation and high-level activity in order to help our
-product and customer teams. **For customers on CodeStream’s free plan, the phone
-home does also include users’ email addresses so that we are able to contact you
-for support, updates and security notices.** If you upgrade to a paid plan,
-email addresses are no longer included and you can turn off phone home.
-
-To disable Phone Home, simply change this setting in your config file;
-**~/.codestream/codestream-services-config.json**. _Remember, that this only
-works for paid plans._
-
-```
-	"apiServer": {
-        ...
-        "disablePhoneHome": true,
-        ...
-    }
-```
+product and customer teams. **For customers on CodeStream’s free or trial plan,
+the phone home does also include users’ email addresses so that we are able to
+contact you for support, updates and security notices.** If you upgrade to a
+paid plan, email addresses will no longer included and you can turn off phone
+home.
 
 Here is the complete set of information included in the phone home.
-
+```
 - date 
 - installationId 
 - installationVersion
@@ -97,3 +72,23 @@ Here is the complete set of information included in the phone home.
     - reviewId
     - createdAt
     - approvedAt
+```
+
+## Changing the Telemetry and Phone Home Settings
+
+Use the **Admin App** to modify your telemetry or phone home settings (if
+allowed).
+
+1.  Using your web browser, launch the Admin App (usually on port 8080 or 8443
+    on your CodeStream On-Prem server). Login if need be.
+
+1.	Navigate to the **Configuration > General** pane and make your changes.
+	<img src="../assets/images/adminapp/orig/CfgGeneral.png" height="350" />
+
+## Save, Activate and Restart
+
+1.   After making your edits, [follow these instructions to save your
+    changes](../adminapp/#saving-and-activating-changes) and **make sure you
+    activate the new configuration**.
+
+1.  [Restart the On-Prem services](../configs/single-host-linux/#retart-the-services).

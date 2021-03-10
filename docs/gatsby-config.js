@@ -37,7 +37,7 @@ module.exports = {
 
 				// Navigation - the order of these properties seems to be used on the site ??
 				sidebarCategories: {
-					null: ['index', 'tos'],
+					null: ['index', 'adminapp', 'tos'],
 					'Installation Types': [
 						'configs/service-overview',
 						'configs/single-host-linux',

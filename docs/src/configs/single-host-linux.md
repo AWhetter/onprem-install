@@ -18,14 +18,6 @@ CodeStream clients (IDE extensions) make requests to the API
 service on port **80** using **HTTP** and the Broadcaster on port **12080**
 using **HTTP websockets**.
 
-The configuration file which controls all of your installation's functionality
-resides on the host OS as **~/.codestream/codestream-services-config.json**. If
-you want to make changes to your configuration, our instructions will walk you
-through the edits you'll need to make to this file. It is a **JSON** file and
-[must be syntactically formatted as such](https://www.json.org). Further, you
-must not add properties to it unless documented here, nor remove properties from
-it.
-
 ## Extend CodeStream's Capabilities
 
 Here are links to a few of the ways to extend your installation's capabilities.
@@ -68,9 +60,15 @@ This stops the containers but does not destroy them.
 In the event you need to do some database maintenance, this will stop all the
 codestream services except for MongoDB.
 ```
-~/.codestream/codestream --stop-execpt-mongo
+~/.codestream/codestream --stop --not-mongo
 ```
 
+### Retart the services
+Restarting all the services (containers) is something you'll need to do when
+activating a new configuration or executing some other support task.
+```
+~/.codestream/codestream --restart
+```
 ### Check the status of your containers and mongo data volume
 ```
 ~/.codestream/codestream --status
@@ -82,6 +80,17 @@ This will dump the contents of the mongo database to a single archive file in
 ```
 ~/.codestream/codestream --backup
 ```
+
+### Capture server logs
+When troubleshooting, we may ask for the server logs. You can capture logs from
+all containers into a single tar file with the following, or similar, command:
+```
+~/.codestream/codestream --logs 1h
+```
+This will gather the most recent hour's worth of logs. You can also use `m` for
+minutes. If you're troubleshooting a transient problem (such as connectivity)
+it's important that you capture logs from the time period during which you
+experience the problem.
 
 ### Update your system to the latest version
 This will backup your mongo database before doing the update.

@@ -29,54 +29,39 @@ When you obtain your certificate you'll have 2 or 3 files.
 Place a copy of the files (in **PEM** format) in the **~/.codestream/** directory
 on the linux host OS.
 
-## Update the CodeStream Configuration File
+## Add the Certificate to the Configuration
 
-*   In an editor, update your configuration file
-    **~/.codestream/codestream-services-config.json** so it contains the
-    following section, replacing the file name placeholders (the part enclosed
-    in `<>`) with the file names of your certificate files (do not include the
-    paths).
-	```
-	{
-		"ssl": {
-			"cafile": "/opt/config/<CA-file-name>",
-			"certfile": "/opt/config/<CERT-file-name>",
-			"keyfile": "/opt/config/<KEY-file-name>",
-			"requireStrictSSL": true
-		}
-	}
-	```
-    Set `requireStrictSSL` to `false` if you are using a self-signed
-    certificate.
-	
-	If you have a self-signed certificate, the `cafile` property is
-    optional.
+Use the **Admin App** to upload the certificate into your codestream
+configuration and activate it.
 
-    Leave the **/opt/config/** path prefixes as is. They are relative to the
-    docker containers.
+*	Using your web browser, launch the admin app (usually on port 8080 on your
+	CodeStream On-Prem server). Login if need be.
 
-*   Change the API and Broadcaster sections to include the following properties:
-	```
-	{
-		"apiServer": {
-			"ignoreHttps": false
-			"port": 443
-		},
-		"broadcastEngine": {
-			"codestreamBroadcaster": {
-				"ignoreHttps: false,
-				"port": 12443
-			}
-		}
-	}
-	```
+*	Navigate to the **Configuration > Topology** pane.
 
-## Restart the CodeStream Backend Services
+ <img src="../assets/images/adminapp/orig/CfgTopology.png" height="400" />
 
-Run this command on your host OS:
-```
-~/.codestream/codestream --restart
-```
+<br />
+
+*	Add your TLS certificate, key & optional bundle file.
+
+*   Next, change your ports to reflect that you're now running under HTTPS/TLS.
+    We recommend you use 443 for the API, 12443 for the broadcaster and 8443 for
+    the Admin App. The API has a secondary, public-facing, port which can be
+    different than the port the API service actually listens on. This is to
+    support installations that have proxies or load balancers in front of the
+    On-Prem server. A client extension will contact the API using the public
+    facing port. Normally it should match the API port.
+
+*	Check the box which indicates you want to use secure communications.
+
+## Save, Activate and Restart
+
+*   After making your edits, [follow these instructions to save your
+    changes](../adminapp/#saving-and-activating-changes) and **make sure you
+    activate the new configuration**.
+
+*  [Restart the On-Prem services](../configs/single-host-linux/#retart-the-services).
 
 ## Update Your CodeStream IDE Client Settings
 

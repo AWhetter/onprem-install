@@ -58,15 +58,17 @@ Complete these steps in order:
 1. Login to the [Azure Portal](https://portal.azure.com)
 1. Hamburger Menu (upper left) > '+ Create a resource'
 1. Search for the **bot channels registration** resource and press the Create button.
+   <img src="../assets/images/mst/01-find-bot-service.png" height="350" />
+   <!-- ![screen shot](../assets/images/mst/01-find-bot-service.png) -->
 
-   ![screen shot](../assets/images/mst/01-find-bot-service.png)
-
-   ![screen shot](../assets/images/mst/02-create-bot-channel-reg.png)
+   <img src="../assets/images/mst/02-create-bot-channel-reg.png" height="350" />
+   <!-- ![screen shot](../assets/images/mst/02-create-bot-channel-reg.png) -->
 
 1. Complete the **bot channels registration** form and create the resource to
    become available.
 
-   ![screen shot](../assets/images/mst/03-bot-channel-reg-form.png)
+   <img src="../assets/images/mst/03-bot-channel-reg-form.png" height="400" />
+   <!-- ![screen shot](../assets/images/mst/03-bot-channel-reg-form.png) -->
 
    1. Choose a **Bot handle**. It must be globally unique.
 
@@ -97,12 +99,14 @@ Complete these steps in order:
    **App ID**, also referred to as the **Bot ID** or **client ID**. You will
    need this value.
 
-   ![screen shot](../assets/images/mst/104-app-overview.png)
+   <img src="../assets/images/mst/104-app-overview.png" height="300" />
+   <!-- ![screen shot](../assets/images/mst/104-app-overview.png) -->
 
 1. Select _Certificates & Secrets_ under the _Manage_ section and create a new
    client secret (leave the one that's already there in place).
 
-   ![screen shot](../assets/images/mst/107-secret-added.png)
+   <img src="../assets/images/mst/107-secret-added.png" height="300" />
+   <!-- ![screen shot](../assets/images/mst/107-secret-added.png) -->
 
    _**Make sure you save the secret (password). You won't be able to retrieve
    it again.**_
@@ -110,18 +114,23 @@ Complete these steps in order:
 1. In the Azure Portal, find the **Bot Services** section (use the search if
    need be) and click on your Bot Service.
 
+   <!-- <img src="../assets/images/mst/108-bot-services.png" height="300" /> -->
    ![screen shot](../assets/images/mst/108-bot-services.png)
 
+   <!-- <img src="../assets/images/mst/109-select-your-bot-reg.png" height="300" /> -->
    ![screen shot](../assets/images/mst/109-select-your-bot-reg.png)
 
 1. Sekect the **Channels** blade and add MS Teams as a channel and click
    **Save**. You should now see MS Teams listed under **Connect to Channels**.
 
+   <!-- <img src="../assets/images/mst/110-bot-services-channels-blade.png" height="350" /> -->
    ![screen shot](../assets/images/mst/110-bot-services-channels-blade.png)
 
-   ![screen shot](../assets/images/mst/111-bot-services-channels-add-mst.png)
+   <img src="../assets/images/mst/111-bot-services-channels-add-mst.png" height="350" />
+   <!-- ![screen shot](../assets/images/mst/111-bot-services-channels-add-mst.png) -->
 
-   ![screen shot](../assets/images/mst/112-mst-connector-added.png)
+   <img src="../assets/images/mst/112-mst-connector-added.png" height="350" />
+   <!-- ![screen shot](../assets/images/mst/112-mst-connector-added.png) -->
    
 
 ## Create a custom CodeStream App Package
@@ -143,55 +152,40 @@ _NOTE: This requires the `zip` command be installed on your host OS._
 Your newly created App Package is on your host OS as `~/.codestream/codestream-mst-app.zip`.
 
 
-## Update the CodeStream Services configuration file
+## Update your CodeStream configuration.
+*	Using your web browser, launch the Admin App (usually on port 8080 or 8443
+   on your CodeStream On-Prem server). Login if need be.
 
-Next, add the App ID and Password to the CodeStream On-Prem configuration file,
-`~/.codestream/codestream-services-config.json`.
+*  Navigate to the **Configuration > Integrations** pane, open the MS Teams
+   messaging integration accordion and add the app data. <img
+   src="../assets/images/adminapp/orig/CfgIntMST.png" height="350" />
 
-1. Backup the config file.
-   ```
-   cp ~/.codestream/codestream-services-config.json ~/.codestream/codestream-services-config.json.backup
-   ```
+*	After making your edits, [follow these instructions to save your
+   changes](../adminapp/#saving-and-activating-changes) and **make sure you
+   activate the new configuration**.
 
-1. Use an editor to update (or add) the `integrations` section with the
-   following properties:
-   ```
-   {
-      ...
-      "integrations": {
-         "msteams": {
-            "cloud": {
-               "botAppId": "<app-id>",
-               "botAppPassword": "<secret-password>"
-            }
-         }
-      },
-      ...
-   }
-   ```
-
-1. Restart the CodeStream services (not including mongo)
-   ```
-   ~/.codestream/single-host-preview-install.sh -M -a restart
-   ```
+*	Finally, [restart the services](../configs/single-host-linux/#retart-the-services).
 
 ### Side-load the CodeStream App Package into MS Teams
 This requires Admin privileges within MS Teams.
 
 Go to the Office 365 MS Teams application, select the ellipsis (...) and then _More apps_. 
 
-![screen shot](../assets/images/mst/201-more-apps.png)
+<img src="../assets/images/mst/201-more-apps.png" height="300" />
+<!-- ![screen shot](../assets/images/mst/201-more-apps.png) -->
 
 Look at your left navigation and make sure you have the _Upload a custom app_
 link at the bottom. This requires privileges. If you don't see it, you need to
 talk to your Office / Teams administrator.
 
-![screen shot](../assets/images/mst/202-app-nav.png)
+<img src="../assets/images/mst/203-app-added.png" height="300" />
+<!-- ![screen shot](../assets/images/mst/202-app-nav.png) -->
 
 Select _Upload a custom app_ and upload the zip file (app package) you created
 in the prior step. When you're done, you should see this.
 
-![screen shot](../assets/images/mst/203-app-added.png)
+<img src="../assets/images/mst/203-app-added.png" height="300" />
+<!-- ![screen shot](../assets/images/mst/203-app-added.png) -->
 
 The CodeStream Bot App is now available for users to add to their channels or
 teams and to sign-in and connect to your CodeStream API.
