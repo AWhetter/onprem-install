@@ -25,7 +25,11 @@ mkdir -p $HOME/codestream-package/.codestream/.docker-images || exit 1
 cd $HOME/codestream-package/.codestream || exit 1
 
 # clone the repo
-[ ! -d .onprem-install ] && { git clone --depth 1 $installationBranch https://github.com/teamcodestream/onprem-install .onprem-install || exit 1; }
+if [ ! -d .onprem-install ]; then
+	git clone --depth 1 $installationBranch https://github.com/teamcodestream/onprem-install .onprem-install || exit 1
+else
+	cd .onprem-install && git pull origin --rebase && cd .. || exit 1
+fi
 
 # put the codestream script in place
 [ $testMode -eq 1 ] && cp $0 . || cp .onprem-install/install-scripts/codestream .
