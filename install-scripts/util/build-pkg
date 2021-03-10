@@ -50,7 +50,7 @@ mailoutRepo=""
 rabbitmqRepo=""
 pythonRepo=""
 . .onprem-install/versions/preview-single-host.ver || exit 1
-[ -z "$opadmRepo" ] && apiRepo="teamcodestream/opadm-onprem"
+[ -z "$opadmRepo" ] && opadmRepo="teamcodestream/opadm-onprem"
 [ -z "$apiRepo" ] && apiRepo="teamcodestream/api-onprem"
 [ -z "$broadcasterRepo" ] && broadcasterRepo="teamcodestream/broadcaster-onprem"
 [ -z "$mailoutRepo" ] && mailoutRepo="teamcodestream/mailout-onprem"
