@@ -1,5 +1,11 @@
 # Change Log
 
+## [8.2.21] - 2021-3-12
+
+### Added
+
+- Updates for CMS support for weekly emails (github pages)
+
 ## [8.2.20] - 2021-3-9
 
 ### Added
