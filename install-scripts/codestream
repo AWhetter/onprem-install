@@ -396,10 +396,11 @@ function container_state {
 
 # report container and volume status
 function docker_status {
+	local authStatus="$1"
 	docker ps -a|egrep -e '[[:blank:]]cs|NAME'
 	echo
 	docker volume ls -f name=csmongodata
-	if [ -f $CS_ROOT/.status-urls ]; then
+	if [ -n "$authStatus" -a -f $CS_ROOT/.status-urls ]; then
 		. $CS_ROOT/.status-urls
 		echo
 		echo "api         : $apiUrl [`curl -s $apiUrl/no-auth/status`]"
@@ -882,7 +883,7 @@ load_container_versions
 [ "$1" == "--cfg-tool" ] && shift && { mongo_config_tool "$@"; exit $?; }
 
 [ "$1" == "-a" ] && echo -e "\nThe -a option is no longer avaiable.\n" && usage
-[ "$1" == "--status" ] && shift && { docker_status; exit; }
+[ "$1" == "--status" ] && shift && { docker_status auth; exit; }
 [ "$1" == "--start" ] && shift && { start_containers "$@"; sleep 1; docker_status; exit; }
 [ "$1" == "--stop" ] && shift && { stop_containers "$@"; exit; }
 [ "$1" == "--restart" ] && shift && { stop_containers "$@"; sleep 1; start_containers "$@"; sleep 1; docker_status; exit; }
