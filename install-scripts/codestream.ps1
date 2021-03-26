@@ -38,7 +38,11 @@ Param (
 	$UpdateContainers = $false,
 	[switch]
 	# Updates this script
-	$UpdateMyself = $false
+	$UpdateMyself = $false,
+
+	[switch]
+	# undocumented. create the docker compose file
+	$BuildDockerCompose = $false
 )
 #----------------[ Declarations ]----------------
 
@@ -49,7 +53,6 @@ Param (
 # NOTE: $HOME is built-in
 $CS_ROOT="$HOME/.codestream";
 [System.Environment]::SetEnvironmentVariable('CS_ROOT', $CS_ROOT, [System.EnvironmentVariableTarget]::User)
-#[System.Environment]::SetEnvironmentVariable('CSSVC_CFG_URL', "mongodb://csmongo/codestream", [System.EnvironmentVariableTarget]::User)
 $INSTALLATION_BRANCH=Get-Content -Path "$CS_ROOT\installation-branch" -ErrorAction SilentlyContinue;
 $CS_INSTALLATION_BRANCH=if ($INSTALLATION_BRANCH -eq $null) { "master" } else { $INSTALLATION_BRANCH }
 
@@ -62,6 +65,8 @@ class DockerService {
     [string]$imageName;
 	# the image version from ini
     [string]$imageVersion;
+	# environment variables for this container
+	[string[]]$envVars;
 	# ports, if any
     [string[]]$ports;
 	# mounted volumes, if any, formatted as /local/path:/container/path
@@ -72,6 +77,7 @@ class DockerService {
     [string]$name,
     [string]$imageName,
     [string]$imageVersion,
+	[string[]]$envVars = $null,
     [string[]]$ports = $null,
     [string[]]$volumes = $null
     ) {
@@ -79,21 +85,26 @@ class DockerService {
         $this.name = $name
         $this.imageName = $imageName
         $this.imageVersion = $imageVersion
+		$this.envVars = $envVars
         $this.ports = $ports
         $this.volumes = $volumes        
     }
 }
-
+$containerEnvironmentVariables = @(
+	"CSSVC_CFG_URL=mongodb://csmongo/codestream",
+	"CS_API_DEFAULT_CFG_FILE=/opt/config/codestream-services-config.json"
+);
 $dockerServices = @(
-[DockerService]::new("mongo","csmongo","mongo","0.0.0", $null, $null)
-,[DockerService]::new("rabbit","csrabbitmq","unknown","0.0.0", $null, @("{CS_ROOT}:/opt/config"))
-,[DockerService]::new("broadcaster","csbcast","unknown","0.0.0",@('12004:12004'), @("{CS_ROOT}:/opt/config"))
-,[DockerService]::new("api","csapi","unknown","0.0.0", @('12000:12000'), @("{CS_ROOT}:/opt/config"))
-,[DockerService]::new("mailout","csmailout","unknown","0.0.0", $null, @("{CS_ROOT}:/opt/config"))
-,[DockerService]::new("opadm","csadmin","unknown","0.0.0", @('12002:12002'), @("{CS_ROOT}:/opt/config"))
+ [DockerService]::new("mongo",       "csmongo",     "mongo",   "0.0.0", $null, $null, $null)
+,[DockerService]::new("rabbit",      "csrabbitmq",  "unknown", "0.0.0", $containerEnvironmentVariables, $null, @("{CS_ROOT}:/opt/config"))
+,[DockerService]::new("broadcaster", "csbcast",     "unknown", "0.0.0", $containerEnvironmentVariables, @('12004:12004'), @("{CS_ROOT}:/opt/config"))
+,[DockerService]::new("api",         "csapi",       "unknown", "0.0.0", $containerEnvironmentVariables, @('12000:12000'), @("{CS_ROOT}:/opt/config"))
+,[DockerService]::new("mailout",     "csmailout",   "unknown", "0.0.0", $containerEnvironmentVariables, $null, @("{CS_ROOT}:/opt/config"))
+,[DockerService]::new("opadm",       "csadmin",     "unknown", "0.0.0", $containerEnvironmentVariables, @('12002:12002'), @("{CS_ROOT}:/opt/config"))
 )
-$ALL_CONTAINERS= $dockerServices | Select-Object -Property name | ForEach { $_.name}
-$CS_CONTAINERS= $dockerServices | Where-Object { $_.settingsName -ne "mongo"} | Select-Object -Property name | ForEach { $_.name}
+
+$ALL_CONTAINERS = $dockerServices | Select-Object -Property name | ForEach { $_.name}
+$CS_CONTAINERS = $dockerServices | Where-Object { $_.settingsName -ne "mongo"} | Select-Object -Property name | ForEach { $_.name}
 $dockerComposeTemplate = "version: '3.9'`nservices:`n"
 
 Function StartContainers { docker-compose start }
@@ -192,10 +203,16 @@ Function LoadContainerVersions {
 				$str+="    - $_`n"
 			}   
 		}
+		if ($_.envVars -ne $null) {
+			$str+="  environment:`n";  
+			$_.envVars | ForEach-Object {
+				$str+="    - $_`n"
+			}   
+		}
 	}
 	$str -Replace "{CS_ROOT}",$CS_ROOT | Out-File -Encoding "UTF8" -FilePath "docker-compose.yml"
 	Write-Verbose "docker-compose.yml created"
-  }
+}
   
 Function DockerStatus {  
   docker ps -a
@@ -283,8 +300,11 @@ elseif ($UpdateContainers -eq $true) {
 elseif ($UpdateMyself -eq $true) {
 	UpdateMyself;
 }
+elseif ($BuildDockerCompose -eq $true) {
+	LoadContainerVersions;
+}
 else {
-	if($args.Count -eq 0) {
+	if ($args.Count -eq 0) {
 		Get-Help $MyInvocation.MyCommand.Definition
 		return
 	}
