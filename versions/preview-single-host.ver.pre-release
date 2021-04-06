@@ -1,4 +1,4 @@
-apiDockerVersion="8.2.35-213"
+apiDockerVersion="8.2.36-214"
 broadcasterDockerVersion="8.2.34-83"
 dtPython3DockerVersion="0.0.0"
 mailoutDockerVersion="8.2.33-85"
