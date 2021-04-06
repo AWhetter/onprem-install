@@ -1,6 +1,11 @@
 # Change Log
 
-## [8.2.23] - 2021-3-26
+## [8.2.23] - 2021-4-6
+
+### Changed
+
+- Eliminates check for username uniqueness at registration since it's really a display name
+- Improves logic for determining on-prem vs cloud
 
 ### Fixed
 
