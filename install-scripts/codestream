@@ -51,21 +51,41 @@ Usage:
 }
 
 ############################################################
+## Development functions
+############################################################
+
+function reset_dev_env {
+	yesno "This will remove all CS containers and ALL docker volumes. Are you sure (y/N)? " no && echo "aborted" && return 1
+	cd $CS_ROOT || exit 1
+	./codestream --reset
+	[ `docker volume ls | wc -l` -gt 1 ] &&	docker volume rm $(docker volume ls | awk '{print $2}' | grep -v VOL)
+	/bin/rm -f terms.txt mongo.url .status-urls .tos-agreed product-type
+	[ -L ./util ] && /bin/rm ./util || /bin/rm -rf ./util
+	yesno "Remove 'container-versions' (y/N)? " no || /bin/rm -f container-versions
+	yesno "Remove all images (y/N)? " no || docker rmi $(docker images|awk '{print $3}'|grep -v IMA)
+	return 0
+}
+
+
+############################################################
 ## Core utility functions
 ############################################################
 
-# prompt for a yes or no answer to a question
+## yesno(prompt): prompt for a yes or no answer to a question
 #
 # args:
-#    prompt     message to display
+#    prompt       message to display
+#    defautlVal   "yes" or "no" (optional. default will force an answer)
 # returns:
 #    0   no
 #    1   yes
 function yesno {
 	local prompt=$1
+	local defVal=$2
 	local ans
 	echo -n "$prompt"
 	read ans
+	[ -z "$ans" -a -n "$defVal" ] && { [ $defVal == y ] && return 1 || return 0; }
 	while [ "$ans" != "y" -a "$ans" != "n" ]; do
 		echo -n "y or n ? "
 		read ans
@@ -114,8 +134,16 @@ function guess_primary_ip {
 		[ -n "$x" ] && echo $x && return
 	fi
 	# last resource - this isn't a good idea because hostname's output is unordered
-	hostname -I | awk '{print $1}'
+	[ "$CS_PRODUCT_TYPE" == "Single Linux Host" ] && hostname -I | awk '{print $1}' && return
+	[ "$CS_PRODUCT_TYPE" == "Single Mac Host" ] && ipconfig getifaddr $(route -n get default|grep interface|awk '{print $2}')
 	return
+}
+
+function system_type {
+	[ `uname -s` == Darwin ] && echo Mac && return 0
+	[ `uname -s` == Linux ] && echo Linux && return 0
+	echo "FATAL: Cannot determine this system type using 'uname -s'" >&2
+	exit 1
 }
 
 
@@ -129,7 +157,7 @@ function guess_primary_ip {
 function fetch_utilities {
 	local force_fl="$1"
 	if [ $CS_OPI_SANDBOX -eq 1 ]; then
-		[ -z "`ls -d $CS_ROOT/util 2>/dev/null`" ] && echo "linking to $OPI_TOP/install-scripts/util" && ln -s $OPI_TOP/install-scripts/util $OPI_DATA/util
+		[ -z "`ls -d $CS_ROOT/util 2>/dev/null`" ] && echo "linking to $OPI_TOP/install-scripts/util" && ln -s $OPI_TOP/install-scripts/util $CS_ROOT/util
 		echo "Running inside OPI sandbox. No fetch needed."
 		return 0
 	fi
@@ -231,9 +259,9 @@ function update_containers_except_mongo {
 		# [ $parm == "--package" ] && CS_INSTALL_FROM_PKG=yes
 	done
 	local undoId=$(undo_stack_id "" "full container update procedure")
-	stop_containers --not-mongo
+	stop_containers not-mongo
 	[ -z "$nobackup" ] && { backup_dot_codestream $undoId && backup_mongo $CS_MONGO_URL $undoId || exit 1; }
-	remove_containers --not-mongo
+	remove_containers not-mongo
 	update_container_versions $undoId
 	local rc=$?
 	[ $rc -eq 2 ] && echo "error updating containers">&2 && exit 1
@@ -409,12 +437,23 @@ function docker_status {
 	fi
 }
 
+function docker_network_args {
+	local port
+	case "$CS_PRODUCT_TYPE" in
+		'Single Linux Host') echo "--network=host";;
+		'Single Mac Host') for port in "$@"; do echo -n " -p $port:$port"; done; echo;;
+		*) echo "unknown CS_PRODUCT_TYPE='$CS_PRODUCT_TYPE'" >&2; exit 1;;
+	esac
+}
+
 # start up a container regardless if it already exists
 # extra parms are sent to docker run command
 function run_or_start_container {
-	local container=$1
-	local state=$(container_state $container)
+	local port="" container="$1"
 	shift
+	[ -n "$1" ] && port="$1"  && shift
+	[ $CS_DEBUG_MODE -eq 1 ] && echo "starting container $container on port $port"
+	local state=$(container_state $container)
 	[ "$state" == "running" ] && echo "Container $container is already running" >&2 && return
 	if [ "$state" == "exited" ]; then
 		echo "docker start $container"
@@ -425,49 +464,79 @@ function run_or_start_container {
 	[ $CS_USE_ADMIN -eq 1 -a -f $CS_ROOT/.container-run-params ] && containerEnv=`cat $CS_ROOT/.container-run-params`
 	[ $CS_USE_ADMIN -eq 1 ] && containerEnv="$containerEnv --env CSSVC_CFG_URL=$CS_MONGO_URL --env CSSVC_CFG_FILE" && export CSSVC_CFG_FILE=""
 	[ -n "$state" ] && echo "Container $container is in an unknown state ($state). Aborting" >&2 && return
+
+	# IMPORTANT!!!!!!!!!!!!!!
+	#
+	# In docker under linux --network=host sets up host based networking which
+	# will ignore the port publishing options (-p, -P) making the containers
+	# available on their internally bound ports (typically the ones that are
+	# exposed).
+	#
+	# In docker on a mac --network=host is ignored (not supported) and the
+	# published ports are used, requiring us to know the ports we want to use.
 	echo "running container $container (docker run)"
 	case $container in
 		csmongo)
-			echo docker run -d -P --network="host" -v csmongodata:/data/db --name csmongo mongo:$mongoDockerVersion
-			docker run -d -P --network="host" -v csmongodata:/data/db --name csmongo mongo:$mongoDockerVersion;;
+			echo docker run -d $(docker_network_args 27017) -v csmongodata:/data/db --name csmongo mongo:$mongoDockerVersion
+			docker run -d $(docker_network_args 27017) -v csmongodata:/data/db --name csmongo mongo:$mongoDockerVersion
+			;;
 		csrabbitmq)
-			echo docker run -d -P --network="host" --name csrabbitmq "$@" $rabbitmqRepo:$rabbitDockerVersion
-			docker run -d -P --network="host" --name csrabbitmq "$@" $rabbitmqRepo:$rabbitDockerVersion;;
+			echo docker run -d $(docker_network_args 5672 15672) --name csrabbitmq "$@" $rabbitmqRepo:$rabbitDockerVersion
+			docker run -d $(docker_network_args 5672 15672) --name csrabbitmq "$@" $rabbitmqRepo:$rabbitDockerVersion
+			;;
 		csapi)
-			echo docker run -d -P -v $CS_ROOT:/opt/config --network="host" --name csapi $containerEnv "$@" $apiRepo:$apiDockerVersion
-			docker run -d -P -v $CS_ROOT:/opt/config --network="host" --name csapi $containerEnv "$@" $apiRepo:$apiDockerVersion;;
+			echo docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csapi $containerEnv "$@" $apiRepo:$apiDockerVersion
+			docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csapi $containerEnv "$@" $apiRepo:$apiDockerVersion
+			;;
 		csbcast)
-			echo docker run -d -P -v $CS_ROOT:/opt/config --network="host" --name csbcast $containerEnv "$@" $broadcasterRepo:$broadcasterDockerVersion
-			docker run -d -P -v $CS_ROOT:/opt/config --network="host" --name csbcast $containerEnv "$@" $broadcasterRepo:$broadcasterDockerVersion;;
+			echo docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csbcast $containerEnv "$@" $broadcasterRepo:$broadcasterDockerVersion
+			docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csbcast $containerEnv "$@" $broadcasterRepo:$broadcasterDockerVersion
+			;;
 		csmailout)
-			echo docker run -d -P -v $CS_ROOT:/opt/config --network="host" --name csmailout $containerEnv "$@" $mailoutRepo:$mailoutDockerVersion
-			docker run -d -P -v $CS_ROOT:/opt/config --network="host" --name csmailout $containerEnv "$@" $mailoutRepo:$mailoutDockerVersion;;
+			echo docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csmailout $containerEnv "$@" $mailoutRepo:$mailoutDockerVersion
+			docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csmailout $containerEnv "$@" $mailoutRepo:$mailoutDockerVersion
+			;;
 		csadmin)
-			echo docker run -d -P -v $CS_ROOT:/opt/config --network="host" --name csadmin $containerEnv "$@" $opadmRepo:$opadmDockerVersion
-			docker run -d -P -v $CS_ROOT:/opt/config --network="host" --name csadmin $containerEnv "$@" $opadmRepo:$opadmDockerVersion;;
+			echo docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csadmin $containerEnv "$@" $opadmRepo:$opadmDockerVersion
+			docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csadmin $containerEnv "$@" $opadmRepo:$opadmDockerVersion
+			;;
 		*)
 			echo "don't know how to start container $container" >&2
 			return;;
 	esac
+	return
 }
 
 # high-level routine to startup all containers
+# flags:
+#    not-mongo:  don't start mongo
 function start_containers {
 	local flags="$1"
-	[ -n "$1" ] && shift    # the rest of the parms will be passed to the API server
-	[ "$CS_DEBUG_MODE" -eq 1 ] && echo "start_containers(): $flags , $*"
-	if [ $CS_RUN_MONGO -eq 1  -a  "$flags" != "--not-mongo" ]; then
-		run_or_start_container csmongo
-		sleep 5
+	[ -n "$1" ] && shift
+	[ $CS_DEBUG_MODE -eq 1 ] && echo "start_containers(flags=$flags, args=$*)"
+
+	[ $CS_RUN_MONGO -eq 1 ] && echo ",$flags," | grep -qv not-mongo && { run_or_start_container csmongo; sleep 5; }
+
+	# we are sorely in need of a real programming language here...
+	echo ",$flags," | grep -q port-file
+	if [ $? -eq 0 ]; then
+		[ ! -f $CS_ROOT/.container-ports ] && echo "$CS_ROOT/.container-ports not found" && exit 1
+		eval `cat $CS_ROOT/.container-ports`
+	else
+		echo "Fetching ports from the database..."
+		eval "`mongo_config_tool --dump active --container-ports`"
 	fi
+
+	[ $CS_DEBUG_MODE -eq 1 ] && echo -e "apiServerPort=$apiServerPort\nbroadcasterPort=$broadcasterPort\nadminServerPort=$adminServerPort"
+
 	echo "Starting containers..."
 	run_or_start_container csrabbitmq
 	sleep 3
-	run_or_start_container csapi "$@"
+	run_or_start_container csapi $apiServerPort "$@"
 	sleep 3
-	run_or_start_container csbcast
+	run_or_start_container csbcast $broadcasterPort
 	run_or_start_container csmailout
-	[ $CS_USE_ADMIN -eq 1 ] && run_or_start_container csadmin
+	[ $CS_USE_ADMIN -eq 1 ] && run_or_start_container csadmin $adminServerPort
 	return 0
 }
 
@@ -476,10 +545,10 @@ function stop_containers {
 	local flags="$1"
 	shift
 	local containers="$CS_CONTAINERS"
-	[ -n "$1" ] && flags="--not-mongo" && containers="$@"
+	[ -n "$1" ] && flags="not-mongo" && containers="$@"
 	local c
 	local state
-	[ $CS_RUN_MONGO -eq 1  -a  "$flags" != "--not-mongo" ] && containers="$containers csmongo"
+	[ $CS_RUN_MONGO -eq 1  -a  "$flags" != "not-mongo" ] && containers="$containers csmongo"
 	echo "Stopping containers..."
 	for c in $containers
 	do
@@ -502,10 +571,10 @@ function remove_containers {
 	local flags="$1"
 	shift
 	local containers="$CS_CONTAINERS"
-	[ -n "$1" ] && flags="--not-mongo" && containers="$@"
+	[ -n "$1" ] && flags="not-mongo" && containers="$@"
 	local c
 	local state
-	[ $CS_RUN_MONGO -eq 1  -a  "$flags" != "--not-mongo" ] && containers="$containers csmongo"
+	[ $CS_RUN_MONGO -eq 1  -a  "$flags" != "not-mongo" ] && containers="$containers csmongo"
 	echo "Removing containers..."
 	for c in $containers
 	do
@@ -575,11 +644,18 @@ function quickstart {
 	local _adminPort=8080
 	# local _fqhn=`hostname` # hostname is the default topology
 	local _fqhn=$(guess_primary_ip) # ip address is the default topology
-	local _mongoUrl=mongodb://localhost/codestream
+	local _mongoUrl=$CS_MONGO_URL
 	local interactive=1
 	local _x
 	# FIXME: would be better if we did not hard code /opt/api/
-	local apiEnv="--env CS_API_DEFAULT_CFG_FILE=/opt/api/codestream-server/api_server/etc/configs/onprem-slh-quickstart.json"
+	if [ "$CS_PRODUCT_TYPE" == "Single Linux Host" ]; then
+		local apiEnv="--env CS_API_DEFAULT_CFG_FILE=/opt/api/codestream-server/api_server/etc/configs/onprem-slh-quickstart.json"
+	elif [ "$CS_PRODUCT_TYPE" == "Single Mac Host" ]; then
+		local apiEnv="--env CS_API_DEFAULT_CFG_FILE=/opt/api/codestream-server/api_server/etc/configs/onprem-smh-quickstart.json"
+	else
+		echo "Unknown product type ($CS_PRODUCT_TYPE)"
+		exit 1
+	fi
 	while [ $# -gt 0 ]
 	do
 		case $1 in
@@ -600,9 +676,11 @@ function quickstart {
 			*) echo "bad usage"; exit 1;;
 		esac
 	done
-	[ $interactive -eq 0 ] && touch $CS_ROOT/.tos-agreed || accept_tos
+	[ -z "$_fqhn" ] && echo "could not determine a default hostname. Use '--public-host' option" && exit 1
+	[ $interactive -eq 0 ] && touch $CS_ROOT/.tos-agreed || { accept_tos || exit 1; }
 	fetch_utilities
 
+	echo "Product Type: $CS_PRODUCT_TYPE"
 	echo "Configuring CodeStream with these public-facing settings:
     Host             [--public-host] :    $_fqhn
     API Port         [--api-port]    :    $_apiPublicPort
@@ -610,9 +688,11 @@ function quickstart {
     Admin Port       [--admin-port]  :    $_adminPort"
 	# Mongo URL:         $_mongoUrl    (--mongo-url)
 	echo -n "
-If this is not what you want, press CTRL-C and specify additional options:   $0 --quickstart [options]
+If this is not what you want, press CTRL-C and specify additional options along with --quickstart
 "
 	[ $interactive -eq 1 ] && { echo -n "Press ENTER to continue..." && read _x; } || echo "interactive mode disabled...continuing..."
+
+	echo $CS_PRODUCT_TYPE >$CS_ROOT/product-type
 
 	cat >$CS_ROOT/.status-urls <<EOF
 apiUrl="http://$_fqhn:$_apiPublicPort"
@@ -627,7 +707,9 @@ EOF
 	load_container_versions
 	[ -n "$CS_INSTALL_FROM_PKG" ] && load_docker_containers_from_package
 
-	start_containers --with-mongo --env CS_API_SET_PUBLIC_HOST=$_fqhn $apiEnv
+	echo -e "apiServerPort=$_apiPublicPort\nbroadcasterPort=$_bcastPort\nadminServerPort=$_adminPort" >$CS_ROOT/.container-ports
+	start_containers --with-mongo,port-file --env CS_API_SET_PUBLIC_HOST=$_fqhn $apiEnv
+	/bin/rm -f $CS_ROOT/.container-ports
 	exit
 }
 
@@ -787,9 +869,11 @@ and use the command line options to change their values
 "
 	yesno "Do you want to proceed with these options (y/N)? " && echo "Upgrade aborted" && exit 1
 
-	stop_containers --not-mongo
+	stop_containers not-mongo
 	full_backup
-	remove_containers --not-mongo
+	remove_containers not-mongo
+
+	echo $CS_PRODUCT_TYPE >$CS_ROOT/product-type
 
 	echo $_mongoUrl >$CS_ROOT/mongo.url
 	export CS_MONGO_URL=$_mongoUrl
@@ -798,7 +882,7 @@ and use the command line options to change their values
 	run_script_via_api shared/codestream_configs/bin/mongo-config-loader.js --mongo-url $CS_MONGO_URL --load /opt/config/codestream-services-config.json --desc "import codestream-config-services.json" --first-cfg-hook --admin-port $_adminPort || { echo "failed to load config"; exit 1; }
 	mv $CS_ROOT/codestream-services-config.json $CS_ROOT/codestream-services-config.json.loaded-into-db
 
-	start_containers --not-mongo
+	start_containers not-mongo
 
 	echo "Done.
 
@@ -839,14 +923,31 @@ export CS_CONTAINERS="csapi csmailout csbcast csrabbitmq"
 # installation-branch determines which branch of onprem-install to use when downloading files (master or beta)
 [ -f $CS_ROOT/installation-branch ] && { export CS_INSTALLATION_BRANCH="`cat $CS_ROOT/installation-branch`"; echo "Installation branch: $CS_INSTALLATION_BRANCH" >&2; } || export CS_INSTALLATION_BRANCH="master"
 
+# product type
+[ -f $CS_ROOT/product-type ] && export CS_PRODUCT_TYPE=`cat $CS_ROOT/product-type` || export CS_PRODUCT_TYPE="Single $(system_type) Host"
+
 # mongo server
-[ -z "$CS_MONGO_URL" ] && { [ -f $CS_ROOT/mongo.url ] && export CS_MONGO_URL=`cat $CS_ROOT/mongo.url` || export CS_MONGO_URL="mongodb://localhost/codestream"; }
+# [ -z "$CS_MONGO_URL" ] && { [ -f $CS_ROOT/mongo.url ] && export CS_MONGO_URL=`cat $CS_ROOT/mongo.url` || export CS_MONGO_URL="mongodb://localhost/codestream"; }
+if [ -z "$CS_MONGO_URL" ]; then
+	if [ -f $CS_ROOT/mongo.url ]; then
+		export CS_MONGO_URL=`cat $CS_ROOT/mongo.url`
+	else
+		if [ "$CS_PRODUCT_TYPE" == "Single Mac Host" ]; then
+			export CS_MONGO_URL="mongodb://host.docker.internal/codestream"
+		elif [ "$CS_PRODUCT_TYPE" == "Single Linux Host" ]; then
+			export CS_MONGO_URL="mongodb://localhost/codestream"
+		else
+			echo "Unknown product type"
+			exit 1
+		fi
+	fi
+fi
 
 # Admin server
 [ -f $CS_ROOT/mongo.url ] && export CS_USE_ADMIN=1 || export CS_USE_ADMIN=0
 [ $CS_USE_ADMIN -eq 1 ] && export CS_CONTAINERS="$CS_CONTAINERS csadmin"
 
-# touch mongo.off if user-provided mongodb server
+# touch mongo.off if user provided mongodb server (no mongo docker container)
 [ -f $CS_ROOT/mongo.off ] && export CS_RUN_MONGO=0 || export CS_RUN_MONGO=1
 
 [ -n "$OPI_TOP" -a -d "$OPI_TOP/install-scripts" ] && export CS_OPI_SANDBOX=1 || export CS_OPI_SANDBOX=0
@@ -890,10 +991,11 @@ load_container_versions
 [ "$1" == "--reset" ] && shift && { stop_containers "$@"; sleep 1; remove_containers "$@"; exit; }
 [ "$1" == "--start-mongo" ] && shift && { run_or_start_container csmongo; sleep 2; docker_status; exit; }
 
-# undocumented
-[ "$1" == "--run" ] && shift && { [ -n "$1" ] && run_or_start_container "$@" || echo "container name(s) required"; exit $?; }
+# undocumented - know what you're doing!!
+[ "$1" == "--run" ] && shift && { [ -n "$1" ] && run_or_start_container "$@" || echo "container name required"; exit $?; }
 [ "$1" == "--reset-some" ] && shift && { [ -n "$1" ] && { stop_containers "" "$@"; remove_containers "" "$@"; } || echo "container name(s) required"; exit $?; }
 [ "$1" == "--replace" ] && shift && { $0 --reset-some "$@"; $0 --run "$@"; exit $?; }
 [ "$1" == "--update-container-versions" ] && shift && { update_container_versions; exit $?; }
+[ "$1" == "--reset-dev-env" ] && { reset_dev_env; exit $?; }
 
 usage
