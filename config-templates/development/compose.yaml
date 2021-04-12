@@ -1,0 +1,60 @@
+services:
+  csmongo:
+    image: mongo:{{ mongoDockerVersion }}
+    ports:
+      - "27017:27017"
+    volumes:
+      - csmongodata:/data/db
+
+  csrabbitmq:
+    image: {{ rabbitmqRepo }}:{{ rabbitDockerVersion }}
+    ports:
+      - "5672:5672"
+
+  csapi:
+    image: {{ apiRepo }}:{{ apiDockerVersion }}
+    ports:
+      - "{{ apiServerPort }}:{{ apiServerPort }}"
+    depends_on:
+      - csmongo
+      - csrabbitmq
+    environment:
+      - CSSVC_PRODUCT_TYPE=Docker Compose
+      - CSSVC_CFG_URL={{ CS_MONGO_URL }}
+      - CSSVC_CFG_FILE=
+      - CS_API_SET_PUBLIC_HOST={{ CS_API_SET_PUBLIC_HOST }}
+      - CS_API_DEFAULT_CFG_FILE={{ CS_API_DEFAULT_CFG_FILE }}
+
+  csbcast:
+    image: {{ broadcasterRepo }}:{{ broadcasterDockerVersion }}
+    ports:
+      - "{{ broadcasterPort }}:{{ broadcasterPort }}"
+    depends_on:
+      - csapi
+    environment:
+      - CSSVC_PRODUCT_TYPE=Docker Compose
+      - CSSVC_CFG_URL={{ CS_MONGO_URL }}
+      - CSSVC_CFG_FILE=
+
+  csmailout:
+    image: {{ mailoutRepo }}:{{ mailoutDockerVersion }}
+    depends_on:
+      - csapi
+    environment:
+      - CSSVC_PRODUCT_TYPE=Docker Compose
+      - CSSVC_CFG_URL={{ CS_MONGO_URL }}
+      - CSSVC_CFG_FILE=
+
+  csadmin:
+    image: {{ opadmRepo }}:{{ opadmDockerVersion }}
+    ports:
+      - "{{ adminServerPort }}:{{ adminServerPort }}"
+    depends_on:
+      - csapi
+    environment:
+      - CSSVC_PRODUCT_TYPE=Docker Compose
+      - CSSVC_CFG_URL={{ CS_MONGO_URL }}
+      - CSSVC_CFG_FILE=
+
+volumes:
+  csmongodata: {}

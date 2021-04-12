@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# desc# setup for onprem development in $OPI_DATA
+
+cd $OPI_DATA
+[ -L codestream ] && echo "codestream link already exists" && exit 1
+[ -f codestream ] && echo "codestream script will not be overwritten. aborted" && exit 1
+
+echo "
+Setting up for development in \$OPI_DATA.
+Build containers using 'npm run docker:build'.
+
+Run '$OPI_DATA/codestream --reset-dev-env' to wipe the installation (including db)
+"
+
+ln -s $OPI_TOP/install-scripts/codestream
+echo development > release

@@ -1,6 +1,10 @@
 #!/bin/bash
 
-# print command line usage syntax
+[ "$1" == "--funcs" ] && grep '^# ' $0 && exit 0  # for development
+
+# 
+# usage()
+#   desc: print command line usage & option descriptions
 function usage {
 	local cmd=`basename $0`
 	echo "
@@ -50,35 +54,42 @@ Usage:
 	exit 1
 }
 
-############################################################
-## Development functions
-############################################################
+# 
+# ###########################################################
+# # Local development
+# ###########################################################
 
+# 
+# reset_dev_env()
+#   desc: Reset the installation by removing installation files, conatiners &
+#         volumes and optionally images and container-versions file.
 function reset_dev_env {
 	yesno "This will remove all CS containers and ALL docker volumes. Are you sure (y/N)? " no && echo "aborted" && return 1
 	cd $CS_ROOT || exit 1
 	./codestream --reset
 	[ `docker volume ls | wc -l` -gt 1 ] &&	docker volume rm $(docker volume ls | awk '{print $2}' | grep -v VOL)
-	/bin/rm -f terms.txt mongo.url .status-urls .tos-agreed product-type
-	[ -L ./util ] && /bin/rm ./util || /bin/rm -rf ./util
-	yesno "Remove 'container-versions' (y/N)? " no || /bin/rm -f container-versions
+	/bin/rm -f terms.txt mongo.url .status-urls .tos-agreed product-type container-versions compose.yaml compose.yaml.template
+	[ -L ./util ] && /bin/rm ./util
+	[ -d ./util ] && /bin/rm -rf ./util
 	yesno "Remove all images (y/N)? " no || docker rmi $(docker images|awk '{print $3}'|grep -v IMA)
 	return 0
 }
 
 
-############################################################
-## Core utility functions
-############################################################
+# 
+# ###########################################################
+# # Core utilities
+# ###########################################################
 
-## yesno(prompt): prompt for a yes or no answer to a question
-#
-# args:
-#    prompt       message to display
-#    defautlVal   "yes" or "no" (optional. default will force an answer)
-# returns:
-#    0   no
-#    1   yes
+# 
+# yesno(prompt)
+#   desc: prompt for a yes or no answer to a question
+#   args:
+#         prompt       message to display
+#         defautlVal   "yes" or "no" (optional. default will force an answer)
+#   returns:
+#         0   no
+#         1   yes
 function yesno {
 	local prompt=$1
 	local defVal=$2
@@ -94,7 +105,14 @@ function yesno {
 	return 0
 }
 
-# generate a random string of characters of specified length (relies on /dev/urandom)
+# 
+# random_string(strLen)
+#   desc: generate a random string of characters of specified length (relies on
+#         /dev/urandom)
+#   args:
+#         strLen    (int) length of the random character string
+#   returns:
+#         none. prints to stdout
 function random_string {
 	local strLen=$1
 	[ ! -c /dev/urandom ] && echo "the /dev/urandom device was not found - cannot generate a random string" && exit 1
@@ -102,7 +120,12 @@ function random_string {
 	head /dev/urandom | $TR_CMD -dc A-Za-z0-9 | head -c $strLen ; echo ''
 }
 
-# check for core commands this script needs to work
+# 
+# check_env()
+#   desc: check for existence of required system commands
+#   returns:
+#         0   all commands found
+#         1   missing commands - should not proceed
 function check_env {
 	local rc=0
 	local cmd
@@ -114,6 +137,12 @@ function check_env {
 	return $rc
 }
 
+# 
+# get_uuid()
+#   desc: generate a UUID using a local utility (uuidgen > uuid) or via
+#         an http call to www.uuidtools.com.
+#   returns:
+#       none. print UUID on stdout
 function get_uuid {
 	local uuid
 	[ -z "$CS_INSTALL_FROM_PKG" ] && [ -f $CS_ROOT/.UUID ] && cat $CS_ROOT/.UUID && return
@@ -124,6 +153,11 @@ function get_uuid {
 	return
 }
 
+# 
+# guess_primary_ip()
+#   desc: guess the primary ip address of this host.
+#   returns:
+#         none. IP address is printed to stdout
 function guess_primary_ip {
 	# AWS ec2 insetances
 	which ec2-metadata >/dev/null 2>&1 && ec2-metadata --local-ipv4 | awk '{print $2}' && return
@@ -139,6 +173,11 @@ function guess_primary_ip {
 	return
 }
 
+# 
+# system_type()
+#   desc: determine if system is Mac or Linux
+#   returns:
+#         none. prints 'Mac' or 'Linux' to stdout. exits if undetermined.
 function system_type {
 	[ `uname -s` == Darwin ] && echo Mac && return 0
 	[ `uname -s` == Linux ] && echo Linux && return 0
@@ -146,43 +185,44 @@ function system_type {
 	exit 1
 }
 
-
-############################################################
-## Updates
-############################################################
-
-# download designated utility scripts
-# args:
-#     force-flag       non-null string forces download of all utilities
-function fetch_utilities {
-	local force_fl="$1"
-	if [ $CS_OPI_SANDBOX -eq 1 ]; then
-		[ -z "`ls -d $CS_ROOT/util 2>/dev/null`" ] && echo "linking to $OPI_TOP/install-scripts/util" && ln -s $OPI_TOP/install-scripts/util $CS_ROOT/util
-		echo "Running inside OPI sandbox. No fetch needed."
-		return 0
-	fi
-	[ ! -d $CS_ROOT/util ] && mkdir $CS_ROOT/util
-	for u in dt-merge-json
+# 
+# expand_template(template output [variable-list])
+#   desc: simple expansion of a template file using {{ varName }} notation.
+#         provides for CS_, CSSVC_ & known docker repo name and image version
+#         variables.
+#   returns:
+#         none. creates output file (expanded templte) if successful. exits otherwise.
+function expand_template {
+	local template=$1 output=$2
+	shift 2
+	local varName varVal tmpFile=/tmp/tfile.$$
+	local otherVars="mongoDockerVersion rabbitmqRepo rabbitDockerVersion apiRepo apiDockerVersion apiServerPort broadcasterRepo broadcasterDockerVersion broadcasterPort mailoutRepo mailoutDockerVersion opadmRepo opadmDockerVersion adminServerPort"
+	/bin/cp $template $tmpFile || exit 1
+	for varName in $(env | egrep -e '^(CS|CSSVC)_' | cut -f1 -d=) $otherVars "$@"
 	do
-		if [ ! -f $CS_ROOT/$u -o -n "$force_fl" ]; then
-			# echo "Fetching $u ..."
-			if [ -z "$CS_INSTALL_FROM_PKG" ]; then
-				curl https://raw.githubusercontent.com/TeamCodeStream/onprem-install/$CS_INSTALLATION_BRANCH/install-scripts/util/$u -o $CS_ROOT/util/$u -s
-				[ $? -ne 0 ] && echo "error fetching $u" && exit 1
-			else
-				cp $CS_ROOT/.onprem-install/install-scripts/util/$u $CS_ROOT/util/$u
-				[ $? -ne 0 ] && echo "error copying $u from .onprem-install" && exit 1
-			fi
-			chmod 750 $CS_ROOT/util/$u
-		fi
+		grep -q "{{ $varName }}" $tmpFile || continue
+		varVal=`eval "echo \\$$varName"`
+		# echo "varName=$varName, varVal=$varVal"
+		cat $tmpFile | sed -e "s|{{ $varName }}|$varVal|g" >$tmpFile.2 || exit 1
+		/bin/mv -f $tmpFile.2 $tmpFile || exit 1
 	done
+	/bin/mv -f $tmpFile $output || exit 1
 }
 
-# download the latest version of this script in place (then immediately exit)
+# 
+# ###########################################################
+# # Updates
+# ###########################################################
+
+# 
+# update_myself()
+#   desc: download the latest version of this script in place (then immediately exit)
+#   returns:
+#         none. exists upon completion
 function update_myself {
-	[ $CS_OPI_SANDBOX -eq 1 ] && echo "Running inside OPI sandbox. Update git repo $OPI_TOP instead of --update-myself" && exit 0
+	[ -L $0 ] && echo "this script is a sym link. Update aborted" && exit 1
 	if [ -z "$CS_INSTALL_FROM_PKG" ]; then
-		fetch_utilities --force
+		# fetch_utilities --force
 		(
 			curl https://raw.githubusercontent.com/TeamCodeStream/onprem-install/$CS_INSTALLATION_BRANCH/install-scripts/codestream -o $CS_ROOT/codestream -s
 			chmod +x $CS_ROOT/codestream
@@ -194,43 +234,127 @@ function update_myself {
 	exit 0
 }
 
-# update the file containing the container versions for this codestream release
-# args:
-#     undoId (optional)     for storing existing file(s) in the undo stack
-# returns:
-#      0   successfully updated
-#      1   no update necessary
-#      2   error during update
-function update_container_versions {
-	local undoId="$1"
-	if [ -z "$CS_INSTALL_FROM_PKG" ]; then
-		local versionUrl="https://raw.githubusercontent.com/TeamCodeStream/onprem-install/$CS_INSTALLATION_BRANCH/versions/preview-single-host.ver"
-		curl -s --fail --output $CS_ROOT/container-versions.new "$versionUrl$CS_RELEASE_SUFX"
+# 
+# fetch_a_file_as(srcFile targetFile [undoStackId])
+#   desc: fetch a file from githubusercontent or local copy of repo (air-gapped) while
+#         accounting for installation branch and release. Uses undo stack. In this
+#         routine, the file naming convention adds the release as an extension to
+#         the source file name.
+#   args:
+#       srcFile               relative path from root of repo (eg. versions/preview-single-host.ver)
+#       targetFile            target file name (will be located in $CS_ROOT)
+#       undoId (optional)     for storing existing file(s) in the undo stack
+#   returns:
+#        0   successfully updated
+#        1   no update necessary
+#        2   error during update
+function fetch_a_file_as {
+	local srcFile="$1" targetFile="$2" undoId="$3"
+	if [ "$CS_RELEASE" == development ]; then
+		# [ ! -L $targetFile ] && echo "File does not exist" || echo "File exists"
+		# ls -l $targetFile
+		# read
+		[ ! -L $targetFile ] && ln -s $OPI_TOP/$srcFile.development $targetFile
+		return 0
+	elif [ -z "$CS_INSTALL_FROM_PKG" ]; then
+		local versionUrl="https://raw.githubusercontent.com/TeamCodeStream/onprem-install/$CS_INSTALLATION_BRANCH/$srcFile"
+		curl -s --fail --output $CS_ROOT/$targetFile.new "$versionUrl$CS_RELEASE_SUFX"
 		[ $? -ne 0 ] && echo "Failed to download container versions ($versionUrl$CS_RELEASE_SUFX)" && return 2
 	else
-		local versionUrlFile=".onprem-install/versions/preview-single-host.ver"
-		cp $CS_ROOT/$versionUrlFile$CS_RELEASE_SUFX $CS_ROOT/container-versions.new
-		[ $? -ne 0 ] && echo "failed: cp $CS_ROOT/$versionUrlFile$CS_RELEASE_SUFX $CS_ROOT/container-versions.new" && return 2
+		local versionUrlFile=".onprem-install/$srcFile"
+		cp $CS_ROOT/$versionUrlFile$CS_RELEASE_SUFX $CS_ROOT/$targetFile.new
+		[ $? -ne 0 ] && echo "failed: cp $CS_ROOT/$versionUrlFile$CS_RELEASE_SUFX $CS_ROOT/$targetFile.new" && return 2
 	fi
-	if [ ! -f $CS_ROOT/container-versions ]; then
-		/bin/mv $CS_ROOT/container-versions.new $CS_ROOT/container-versions || return 2
+	if [ ! -f $CS_ROOT/$targetFile ]; then
+		/bin/mv $CS_ROOT/$targetFile.new $CS_ROOT/$targetFile || return 2
 		return 0
 	fi
-	x=`diff $CS_ROOT/container-versions.new $CS_ROOT/container-versions|wc -l`
-	[ "$x" -eq 0 ] && /bin/rm -f $CS_ROOT/container-versions.new && return 1
+	x=`diff $CS_ROOT/$targetFile.new $CS_ROOT/$targetFile|wc -l`
+	[ $x -eq 0 ] && /bin/rm -f $CS_ROOT/$targetFile.new && return 1
 	[ -z "$undoId" ] && undoId=$(undo_stack_id "" "called update container versions()")
-	/bin/mv -f $CS_ROOT/container-versions $CS_ROOT/.undo/$undoId/container-versions || return 2
-	/bin/mv -f $CS_ROOT/container-versions.new $CS_ROOT/container-versions || return 2
+	/bin/mv -f $CS_ROOT/$targetFile $CS_ROOT/.undo/$undoId/$targetFile || return 2
+	/bin/mv -f $CS_ROOT/$targetFile.new $CS_ROOT/$targetFile || return 2
 	return 0
 }
 
-# source in the container version file.
-#
-# This contains the versions of each docker image to use as well as optional
-# docker hub repo names. Default repo names will be those for GA (master)
-#
-# args:
-#   undoId    optional undo stack Id
+# 
+# fetch_a_file_from_dir_as(srcFile targetFile [undoStackId])
+#   desc: similar to fetch_a_file_as but the source file is located in a directory
+#         representing the release or none for GA
+#   args:
+#       srcFile               relative path from root of repo (eg. config-templates/compose.yaml)
+#       targetFile            target file name (will be located in $CS_ROOT)
+#       undoId (optional)     for storing existing file(s) in the undo stack
+#   returns:
+#        0   successfully updated
+#        1   no update necessary
+#        2   error during update
+function fetch_a_file_from_dir_as {
+	local srcFile="$1" targetFile="$2" undoId="$3"
+	local srcFileName="`dirname $srcFile`$CS_RELEASE_PATH/`basename $srcFile`"
+	if [ "$CS_RELEASE" == development ]; then
+		# [ ! -L $targetFile ] && echo "File does not exist" || echo "File exists"
+		# ls -l $targetFile
+		# read
+		[ ! -L $targetFile ] && ln -s $OPI_TOP/$srcFileName $targetFile
+		return 0
+	elif [ -z "$CS_INSTALL_FROM_PKG" ]; then
+		local versionUrl="https://raw.githubusercontent.com/TeamCodeStream/onprem-install/$CS_INSTALLATION_BRANCH/$srcFileName"
+		curl -s --fail --output $CS_ROOT/$targetFile.new "$versionUrl"
+		[ $? -ne 0 ] && echo "Failed to download container versions ($versionUrl)" && return 2
+	else
+		local versionUrlFile=".onprem-install/$srcFileName"
+		cp $CS_ROOT/$versionUrlFile $CS_ROOT/$targetFile.new
+		[ $? -ne 0 ] && echo "failed: cp $CS_ROOT/$versionUrlFile $CS_ROOT/$targetFile.new" && return 2
+	fi
+	if [ ! -f $CS_ROOT/$targetFile ]; then
+		/bin/mv $CS_ROOT/$targetFile.new $CS_ROOT/$targetFile || return 2
+		return 0
+	fi
+	x=`diff $CS_ROOT/$targetFile.new $CS_ROOT/$targetFile|wc -l`
+	[ $x -eq 0 ] && /bin/rm -f $CS_ROOT/$targetFile.new && return 1
+	[ -z "$undoId" ] && undoId=$(undo_stack_id "" "called update container versions()")
+	/bin/mv -f $CS_ROOT/$targetFile $CS_ROOT/.undo/$undoId/$targetFile || return 2
+	/bin/mv -f $CS_ROOT/$targetFile.new $CS_ROOT/$targetFile || return 2
+	return 0
+}
+
+# 
+# update_container_versions([undoStackId])
+#   desc: update the file containing the container versions for this codestream release
+#   args:
+#       undoId (optional)     for storing existing file(s) in the undo stack
+#   returns:
+#       0   successfully updated
+#       1   no update necessary
+#       2   error during update
+function update_container_versions {
+	local undoId="$1"
+	fetch_a_file_as versions/preview-single-host.ver container-versions $undoId
+}
+
+# 
+# update_compose_file([port-file] [undoStackId])
+#   desc: download the compose template if need be and then expand it
+#   args:
+#         flags   port-file: load public ports from port file (.container-ports)
+#   returns:
+#         none. compose.yaml will be present or script exits
+function update_compose_file {
+	local flags="$1" undoId="$2"
+	[ ! -f compose.yaml.template ] && { fetch_a_file_from_dir_as config-templates/compose.yaml compose.yaml.template $undoId || exit 1; }
+	echo $flags | grep -q port-file && { eval `cat $CS_ROOT/.container-ports` || { echo "$CS_ROOT/.container-ports not found" && exit 1; } }
+	[ ! -f compose.yaml ] && expand_template $CS_ROOT/compose.yaml.template $CS_ROOT/compose.yaml
+}
+
+# 
+# load_container_versions([undoStackId])
+#   desc: source in the container version file. This file contains the repo names
+#         and versions of each docker image. Default repo names reference GA.
+#   args:
+#         undoId    optional undo stack Id
+#   returns:
+#         none. container data is loaded or script will exit
 function load_container_versions {
 	local undoId="$1"
 	[ ! -f $CS_ROOT/container-versions ] && { update_container_versions "$undoId" "called load_container_versions()" || exit 1; }
@@ -249,7 +373,12 @@ function load_container_versions {
 	[ $CS_USE_ADMIN -eq 1 ] && [ -z "$opadmRepo" ] && opadmRepo="teamcodestream/opadm-onprem"
 }
 
-# Execute the docker update procedure
+# 
+# update_containers_except_mongo()
+#   desc: Execute the docker update procedure
+#   returns:
+#         0    success
+#         >0   fail
 function update_containers_except_mongo {
 	local parm nostart nobackup force
 	for parm in "$@"; do
@@ -277,22 +406,21 @@ function update_containers_except_mongo {
 }
 
 
+# 
+# ###########################################################
+# # Undo Stack
+# ###########################################################
 
-############################################################
-## Undo Stack
-############################################################
-
-# generate an undo stack Id and creates its directory
-#
-# An undo stack Id is a top leveel directory in $CS_ROOT/.undo/ where we
-# keep backups of all the files we will need to undo the current transaction.
-#
-# args:
-#     undoId      optional Id - if not provided one will be generated
-#     eventDesc   brief description of this undo transaction
-#
-# returns:
-#     prints undoId on stdout
+# 
+# undo_stack_id([undoStackId] [eventDescription])
+#   desc: generate an undo stack Id and creates its directory An undo stack
+#         Id is a top leveel directory in $CS_ROOT/.undo/ where we keep
+#         backups of all the files we will need to undo the current transaction.
+#   args:
+#         undoId      optional Id - if not provided one will be generated
+#         eventDesc   brief description of this undo transaction
+#   returns:
+#         none. prints undoId on stdout
 function undo_stack_id {
 	local undoId="$1"
 	local eventDesc="$2"
@@ -307,6 +435,11 @@ function undo_stack_id {
 	echo $undoId
 }
 
+# 
+# print_undo_stack()
+#   desc: print the undo stack
+#   returns:
+#         none
 function print_undo_stack {
 	[ ! -d $CS_ROOT/.undo ] && echo "the undo stack is empty" >&2 && return
 	for u in `ls $CS_ROOT/.undo`; do
@@ -314,31 +447,52 @@ function print_undo_stack {
 	done
 }
 
+# 
+# ###########################################################
+# # MongoDB Utilities & Backups
+# ###########################################################
 
-############################################################
-## MongoDB Utilities & Backups
-############################################################
-
-# backup the contents of the $CS_ROOT directory tree into the undo stack
+# 
+# backup_dot_codestream([undoStackId])
+#   desc: backup the contents of the $CS_ROOT directory tree into the undo stack
+#   returns
+#         none
 function backup_dot_codestream {
 	local undoId="$1"
 	[ -z "$undoId" ] && undoId=$(undo_stack_id "" "called backup_dot_codestream()")
 	tar -C $CS_ROOT -czpf $CS_ROOT/.undo/$undoId/dot.codestream.tgz  --exclude='backups*' --exclude='.undo*' --exclude='log-capture*' .
 }
 
+# 
+# backup_mongo(mongoUrl)
+#   desc: backup the mongo database using a temp mongo container to run mongodump.
+#         Backup is in zipped archive format and stored in the backups dir.
+#   args:
+#         mongoUrl     mongo endpoint
+#   returns:
+#         0  success
+#         1  fail
 function backup_mongo {
 	local mongoUrl="$1"
-	local undoId="$2"
+	# local undoId="$2"
 	[ ! -d $CS_ROOT/backups ] && mkdir $CS_ROOT/backups
 	local filename="dump_$(date '+%Y-%m-%d_%H-%M-%S').gz"
-	# echo "docker run --rm mongo:$mongoDockerVersion mongodump --host $host --archive --gzip"
-	# docker run --rm mongo:$mongoDockerVersion mongodump --host $host --archive --gzip | cat > $CS_ROOT/backups/$filename
-	docker run --rm --network=host mongo:$mongoDockerVersion mongodump --uri $mongoUrl --archive --gzip | cat > $CS_ROOT/backups/$filename
+	docker run --rm $(docker_network_args 27017) mongo:$mongoDockerVersion mongodump --uri $mongoUrl --archive --gzip | cat > $CS_ROOT/backups/$filename
 	[ $? -ne 0 -o \( ! -s $CS_ROOT/backups/$filename \) ] && echo "backup failed" >&2 && return 1
 	echo "Backed up to $CS_ROOT/backups/$filename"
 	return 0
 }
 
+# 
+# restore_mongo(mongoUrl [<file> | latest] [prompt?])
+#   desc: restore data to mongo from a previously made backup.
+#   args:
+#         mongoUrl    mongo endpoint
+#         file        file to restore or 'latest' for latest in the backup dir
+#         prompt      (optional) 'no' to short-circuit interactive confirmation
+#   returns:
+#         0  success
+#         1  fail
 function restore_mongo {
 	local mongoUrl=$1 file=$2 prompt=$3
 	[ -z "$file" ] && echo "usage: $0 --restore { latest | /path/to/dumpfile }" >&2 && return 1
@@ -354,30 +508,34 @@ function restore_mongo {
 		yesno "Do you want to proceed (y/N)? "
 		[ $? -eq 0 ] && echo "never mind" && return 1
 	fi
-	# cat $file | docker run --rm -i mongo:$mongoDockerVersion mongorestore --host $host --archive --gzip --drop
-	cat $file | docker run --rm -i --network=host mongo:$mongoDockerVersion mongorestore --uri $mongoUrl --archive --gzip --drop
+	cat $file | docker run --rm -i $(docker_network_args 27017) mongo:$mongoDockerVersion mongorestore --uri $mongoUrl --archive --gzip --drop
 	[ $? -ne 0 ] && echo "error restoring data!!" >&2 && return 1
 	return 0
 }
 
+# 
+# full_backup()
+#   desc: run a mongo backup and then do a full tar of the $CS_ROOT directory
+#   returns:
+#         none
 function full_backup {
 	csRootBase=`basename $CS_ROOT`
 	{ backup_mongo $CS_MONGO_URL && d=`/bin/ls -tr $CS_ROOT/backups|tail -1|cut -f1 -d.|sed -e 's/dump_//'` && cd $CS_ROOT/.. && tar -czpf ~/full-codestream-backup.$d.tgz $csRootBase && echo -e "\nFull backup is here:" && /bin/ls -l ~/full-codestream-backup.$d.tgz || exit 1; }
 }
 
-
-############################################################
-## Container Execution Utilities
-############################################################
+# 
+# ###########################################################
+# # Container Execution Utilities
+# ###########################################################
 
 # execute a utility script included within an API container
 function run_script_via_api {
 	local script_name=$1
 	[ -z "$script_name" ] && "script name required" && return 1
+	[ "$CS_PRODUCT_TYPE" != "Single Linux Host" ] && echo "utility only available for Single Linux Host installations" && return 1
 	shift
 	echo docker run --rm -v $CS_ROOT:/opt/config --network=host $apiRepo:$apiDockerVersion node /opt/api/codestream-server/$script_name "$@"
 	docker run --rm -v $CS_ROOT:/opt/config --network=host $apiRepo:$apiDockerVersion node /opt/api/codestream-server/$script_name "$@"
-	return $?
 }
 
 # execute a api_server/bin/ script in an API container
@@ -385,11 +543,11 @@ function run_api_utility {
 	local util_name=$1
 	shift
 	run_script_via_api api_server/bin/$util_name "$@"
-	return $?
 }
 
 function run_python_script {
 	# this reports results to stdout so redirect other msgs to stderr
+	[ "$CS_PRODUCT_TYPE" != "Single Linux Host" ] && echo "utility only available for Single Linux Host installations" && exit 1
 	[ $CS_DEBUG_MODE -eq 1 ] && echo "docker run --rm  --network=host -v $CS_ROOT:/cs $pythonRepo:$dtPython3DockerVersion $*" >&2
 	docker run --rm  --network=host -v $CS_ROOT:/cs $pythonRepo:$dtPython3DockerVersion $*
 }
@@ -398,23 +556,24 @@ function run_python_script {
 function run_support_script_via_api {
 	local script_name=$1
 	[ -z "$script_name" ] && "script name required" && return 1
+	[ "$CS_PRODUCT_TYPE" != "Single Linux Host" ] && echo "utility only available for Single Linux Host installations" && return 1
 	script_name=`basename $script_name`
 	[ ! -d $CS_ROOT/support ] && { mkdir $CS_ROOT/support || return 1; }
 	[ ! -f $CS_ROOT/support/$script_name ] && { echo "$CS_ROOT/support/$script_name not found" && return 1; }
 	docker run --rm -v $CS_ROOT:/opt/config --network=host $apiRepo:$apiDockerVersion node /opt/config/support/`basename $script_name`
-	return $?
 }
 
 function api_interactive {
+	[ "$CS_PRODUCT_TYPE" != "Single Linux Host" ] && echo "utility only available for Single Linux Host installations" && exit 1
 	echo docker run -it --rm -v $CS_ROOT:/opt/config --network=host $apiRepo:$apiDockerVersion /bin/bash "$@"
 	docker run -it --rm -v $CS_ROOT:/opt/config --network=host $apiRepo:$apiDockerVersion /bin/bash "$@"
 	exit $?
 }
 
-
-############################################################
-## Container Control
-############################################################
+# 
+# ###########################################################
+# # Container Control
+# ###########################################################
 
 # determine a container's state and report it on stdout
 function container_state {
@@ -425,9 +584,10 @@ function container_state {
 # report container and volume status
 function docker_status {
 	local authStatus="$1"
-	docker ps -a|egrep -e '[[:blank:]]cs|NAME'
+	# docker ps -a|egrep -e '[[:blank:]]cs|NAME'
+	docker ps -a|egrep -e 'cs|NAME'
 	echo
-	docker volume ls -f name=csmongodata
+	docker volume ls | egrep -e 'csmongodata|VOL'
 	if [ -n "$authStatus" -a -f $CS_ROOT/.status-urls ]; then
 		. $CS_ROOT/.status-urls
 		echo
@@ -461,7 +621,7 @@ function run_or_start_container {
 		return
 	fi
 	local containerEnv=""
-	[ $CS_USE_ADMIN -eq 1 -a -f $CS_ROOT/.container-run-params ] && containerEnv=`cat $CS_ROOT/.container-run-params`
+	# [ $CS_USE_ADMIN -eq 1 -a -f $CS_ROOT/.container-run-params ] && containerEnv=`cat $CS_ROOT/.container-run-params`
 	[ $CS_USE_ADMIN -eq 1 ] && containerEnv="$containerEnv --env CSSVC_CFG_URL=$CS_MONGO_URL --env CSSVC_CFG_FILE" && export CSSVC_CFG_FILE=""
 	[ -n "$state" ] && echo "Container $container is in an unknown state ($state). Aborting" >&2 && return
 
@@ -481,24 +641,24 @@ function run_or_start_container {
 			docker run -d $(docker_network_args 27017) -v csmongodata:/data/db --name csmongo mongo:$mongoDockerVersion
 			;;
 		csrabbitmq)
-			echo docker run -d $(docker_network_args 5672 15672) --name csrabbitmq "$@" $rabbitmqRepo:$rabbitDockerVersion
-			docker run -d $(docker_network_args 5672 15672) --name csrabbitmq "$@" $rabbitmqRepo:$rabbitDockerVersion
+			echo docker run -d $(docker_network_args 5672) --name csrabbitmq "$@" $rabbitmqRepo:$rabbitDockerVersion
+			docker run -d $(docker_network_args 5672) --name csrabbitmq "$@" $rabbitmqRepo:$rabbitDockerVersion
 			;;
 		csapi)
-			echo docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csapi $containerEnv "$@" $apiRepo:$apiDockerVersion
-			docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csapi $containerEnv "$@" $apiRepo:$apiDockerVersion
+			echo docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csapi --env CSSVC_PRODUCT_TYPE=\"$CS_PRODUCT_TYPE\" $containerEnv "$@" $apiRepo:$apiDockerVersion
+			docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csapi --env CSSVC_PRODUCT_TYPE="$CS_PRODUCT_TYPE" $containerEnv "$@" $apiRepo:$apiDockerVersion
 			;;
 		csbcast)
-			echo docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csbcast $containerEnv "$@" $broadcasterRepo:$broadcasterDockerVersion
-			docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csbcast $containerEnv "$@" $broadcasterRepo:$broadcasterDockerVersion
+			echo docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csbcast --env CSSVC_PRODUCT_TYPE=\"$CS_PRODUCT_TYPE\" $containerEnv "$@" $broadcasterRepo:$broadcasterDockerVersion
+			docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csbcast --env CSSVC_PRODUCT_TYPE="$CS_PRODUCT_TYPE" $containerEnv "$@" $broadcasterRepo:$broadcasterDockerVersion
 			;;
 		csmailout)
-			echo docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csmailout $containerEnv "$@" $mailoutRepo:$mailoutDockerVersion
-			docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csmailout $containerEnv "$@" $mailoutRepo:$mailoutDockerVersion
+			echo docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csmailout --env CSSVC_PRODUCT_TYPE=\"$CS_PRODUCT_TYPE\" $containerEnv "$@" $mailoutRepo:$mailoutDockerVersion
+			docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csmailout --env CSSVC_PRODUCT_TYPE="$CS_PRODUCT_TYPE" $containerEnv "$@" $mailoutRepo:$mailoutDockerVersion
 			;;
 		csadmin)
-			echo docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csadmin $containerEnv "$@" $opadmRepo:$opadmDockerVersion
-			docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csadmin $containerEnv "$@" $opadmRepo:$opadmDockerVersion
+			echo docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csadmin --env CSSVC_PRODUCT_TYPE=\"$CS_PRODUCT_TYPE\" $containerEnv "$@" $opadmRepo:$opadmDockerVersion
+			docker run -d $(docker_network_args $port) -v $CS_ROOT:/opt/config --name csadmin --env CSSVC_PRODUCT_TYPE="$CS_PRODUCT_TYPE" $containerEnv "$@" $opadmRepo:$opadmDockerVersion
 			;;
 		*)
 			echo "don't know how to start container $container" >&2
@@ -590,6 +750,101 @@ function remove_containers {
 	# [ $CS_RUN_MONGO -eq 1 ] && echo "docker rm csmongo" && docker rm csmongo
 }
 
+# 
+# start_compose()
+#   desc: bring up or start the docker compose environment
+#   returns:
+#         none
+function start_compose {
+	[ $CS_DEBUG_MODE -eq 1 ] && echo docker-compose -p codestream -f $CS_ROOT/compose.yaml up --detach
+	docker-compose -p codestream -f $CS_ROOT/compose.yaml up --detach
+}
+
+# 
+# stop_compose()
+#   desc: stop compose services
+#   returns:
+#         none
+function stop_compose {
+	[ $CS_DEBUG_MODE -eq 1 ] && echo docker-compose -p codestream -f $CS_ROOT/compose.yaml stop
+	docker-compose -p codestream -f $CS_ROOT/compose.yaml stop
+}
+
+# 
+# restart_compose()
+#   desc: restart compose services
+#   returns:
+#         none
+function restart_compose {
+	[ $CS_DEBUG_MODE -eq 1 ] && echo docker-compose -p codestream -f $CS_ROOT/compose.yaml restart
+	docker-compose -p codestream -f $CS_ROOT/compose.yaml restart
+}
+
+# 
+# down_compose()
+#   desc: bring down the docker compose environment
+#   returns:
+#         none
+function down_compose {
+	[ $CS_DEBUG_MODE -eq 1 ] && echo docker-compose -p codestream -f $CS_ROOT/compose.yaml down
+	docker-compose -p codestream -f $CS_ROOT/compose.yaml down
+}
+
+
+# 
+# start_services()
+#  desc: start services (single host or compose)
+#  returns:
+#        none
+function start_services {
+	case "$CS_PRODUCT_TYPE" in
+		"Docker Compose") start_compose "$@";;
+		*) start_containers "$@";;
+	esac
+}
+
+# 
+# stop_services()
+#  desc: stop services (single host or compose)
+#  returns:
+#        none
+function stop_services {
+	case "$CS_PRODUCT_TYPE" in
+		"Docker Compose") stop_compose "$@";;
+		*) stop_containers "$@";;
+	esac
+}
+
+# 
+# restart_services()
+#  desc: restart services (single host or compose)
+#  returns:
+#        none
+function restart_services {
+	case "$CS_PRODUCT_TYPE" in
+		"Docker Compose") restart_compose "$@";;
+		*) stop_containers "$@"; sleep 1; start_containers "$@";;
+	esac
+}
+
+# 
+# reset_services()
+#  desc: reset services (single host or compose)
+#  returns:
+#        none
+function reset_services {
+	case "$CS_PRODUCT_TYPE" in
+		"Docker Compose") down_compose "$@";;
+		*) stop_containers "$@"; sleep 1; remove_containers "$@";;
+	esac
+}
+
+
+# 
+# load_docker_containers_from_packages()
+#   desc: load docker images from disk for air-gapped installations
+#   returns:
+#         none
 function load_docker_containers_from_package {
 	echo "loading docker images from package"
 	set -x
@@ -604,10 +859,10 @@ function load_docker_containers_from_package {
 }
 
 
-
-############################################################
-## Installation
-############################################################
+# 
+# ###########################################################
+# # Installation
+# ###########################################################
 
 # display our terms of service and require user to agree.
 # returns 0 if they do agree, 1 otherwise
@@ -647,11 +902,12 @@ function quickstart {
 	local _mongoUrl=$CS_MONGO_URL
 	local interactive=1
 	local _x
+	local apiEnv=""
 	# FIXME: would be better if we did not hard code /opt/api/
 	if [ "$CS_PRODUCT_TYPE" == "Single Linux Host" ]; then
-		local apiEnv="--env CS_API_DEFAULT_CFG_FILE=/opt/api/codestream-server/api_server/etc/configs/onprem-slh-quickstart.json"
+		export CS_API_DEFAULT_CFG_FILE=/opt/api/codestream-server/api_server/etc/configs/onprem-slh-quickstart.json
 	elif [ "$CS_PRODUCT_TYPE" == "Single Mac Host" ]; then
-		local apiEnv="--env CS_API_DEFAULT_CFG_FILE=/opt/api/codestream-server/api_server/etc/configs/onprem-smh-quickstart.json"
+		export CS_API_DEFAULT_CFG_FILE=/opt/api/codestream-server/api_server/etc/configs/onprem-smh-quickstart.json
 	else
 		echo "Unknown product type ($CS_PRODUCT_TYPE)"
 		exit 1
@@ -659,14 +915,17 @@ function quickstart {
 	while [ $# -gt 0 ]
 	do
 		case $1 in
+			--compose)
+				export CS_PRODUCT_TYPE="Docker Compose"
+				_mongoUrl="mongodb://csmongo/codestream"
+				shift;;
 			--topology)
 				[ "$2" == hostname ] && _fqhn=`hostname`
 				# [ "$2" == ip ] && _fqhn=$(guess_primary_ip)
 				[ -z "$2"  -o  \( "$2" != "ip"  -a  "$2" != "hostname" \) ] && echo "bad usage. Specify a 'hostname' or 'ip' topology." && exit 1
 				shift 2;;
 			--public-host)
-				[ _fqhn == ip ] && _fqhn=$(guess_primary_ip) || _fqhn=$2
-				apiEnv="$apiEnv --env CS_API_SET_PUBLIC_HOST=$2"
+				[ "$2" != ip ] && _fqhn=$2
 				shift 2;;
 			--api-port) _apiPublicPort=$2; apiEnv="$apiEnv --env CS_API_SET_PUBLIC_PORT=$2"; shift 2;;
 			--admin-port) _adminPort=$2; apiEnv="$apiEnv --env CS_API_SET_PUBLIC_ADMIN_PORT=$2"; shift 2;;
@@ -677,8 +936,9 @@ function quickstart {
 		esac
 	done
 	[ -z "$_fqhn" ] && echo "could not determine a default hostname. Use '--public-host' option" && exit 1
+	export CS_API_SET_PUBLIC_HOST=$_fqhn
 	[ $interactive -eq 0 ] && touch $CS_ROOT/.tos-agreed || { accept_tos || exit 1; }
-	fetch_utilities
+	# fetch_utilities
 
 	echo "Product Type: $CS_PRODUCT_TYPE"
 	echo "Configuring CodeStream with these public-facing settings:
@@ -703,20 +963,26 @@ EOF
 	export CS_MONGO_URL=$_mongoUrl
 	export CS_USE_ADMIN=1
 
+	echo -e "apiServerPort=$_apiPublicPort\nbroadcasterPort=$_bcastPort\nadminServerPort=$_adminPort" >$CS_ROOT/.container-ports
+
 	# air-gapped installations get the docker images pre-loaded from disk
 	load_container_versions
 	[ -n "$CS_INSTALL_FROM_PKG" ] && load_docker_containers_from_package
 
-	echo -e "apiServerPort=$_apiPublicPort\nbroadcasterPort=$_bcastPort\nadminServerPort=$_adminPort" >$CS_ROOT/.container-ports
-	start_containers --with-mongo,port-file --env CS_API_SET_PUBLIC_HOST=$_fqhn $apiEnv
+	if [ "$CS_PRODUCT_TYPE" == "Docker Compose" ]; then
+		update_compose_file port-file
+		start_compose
+	else
+		start_containers --with-mongo,port-file $apiEnv --env CS_API_SET_PUBLIC_HOST=$CS_API_SET_PUBLIC_HOST --env CS_API_DEFAULT_CFG_FILE=$CS_API_DEFAULT_CFG_FILE
+	fi
 	/bin/rm -f $CS_ROOT/.container-ports
 	exit
 }
 
-
-############################################################
-## Logs & Support
-############################################################
+# 
+# ###########################################################
+# # Logs & Support
+# ###########################################################
 
 function tail_logs {
 	local numLines="$1"
@@ -755,7 +1021,7 @@ function repair_db {
 	[ -z "$fixScript" ] && echo "name of fix script is required" && return 1
 	fixScript=$(basename $fixScript)
 	[ ! -f $CS_ROOT/$fixScript ] && echo "$CS_ROOT/$fixScript not found" >&2 && return 1
-	docker run --rm --network=host -v $CS_ROOT:/cs mongo:$mongoDockerVersion mongo $CS_MONGO_URL /cs/$fixScript && echo "repair script ran successfully" || { echo "repair script indicated failure"; return 1; }
+	docker run --rm $(docker_network_args 27017) -v $CS_ROOT:/cs mongo:$mongoDockerVersion mongo $CS_MONGO_URL /cs/$fixScript && echo "repair script ran successfully" || { echo "repair script indicated failure"; return 1; }
 	return 0
 }
 
@@ -831,9 +1097,10 @@ function mongo_config_tool {
 	exit $?
 }
 
-############################################################
-## Upgrade to On-Prem Admin Server
-############################################################
+# 
+# ###########################################################
+# # Upgrade to On-Prem Admin Server
+# ###########################################################
 
 function upgrade_to_admin {
 	[ $CS_USE_ADMIN -eq 1 ] && echo "Your installatton is already running the admin service" && exit 0
@@ -902,32 +1169,34 @@ You can always see the logs with these commands:
 #########  Execution Starts Here
 #########
 
+
 ### ------ Globals ------
 
 export CS_CONTAINERS="csapi csmailout csbcast csrabbitmq"
 
 [ -z "$CS_ROOT" ] && csDir=`dirname $0` && export CS_ROOT=$(cd $csDir && pwd)
 
-# commands that aren't the same on different os's
+## commands that aren't the same on different os's
 [ -z "$TR_CMD" ] && export TR_CMD=tr
 
-# .onprem-install is a copy of a the onprem-install repo used for air-gapped installations
+## .onprem-install is a copy of a the onprem-install repo used for air-gapped installations
 [ -d $CS_ROOT/.onprem-install ] && export CS_INSTALL_FROM_PKG=yes || export CS_INSTALL_FROM_PKG=""
 
-# touch debug.on if you want debugging output
+## touch debug.on if you want debugging output
 [ -f $CS_ROOT/debug.on ] && export CS_DEBUG_MODE=1 || export CS_DEBUG_MODE=0
 
-# The release file determines which docker repos and image versions we use (beta, pre-release or GA (null string))
-[ -f $CS_ROOT/release ] && { export CS_RELEASE_SUFX=".`cat $CS_ROOT/release`"; export CS_RELEASE_PATH="/`cat $CS_ROOT/release`"; echo "Release: `basename $CS_RELEASE_PATH`" >&2; }
+## The release file determines which docker repos and image versions we use (beta, pre-release or GA (null string))
+[ -f $CS_ROOT/release ] && { export CS_RELEASE=`cat $CS_ROOT/release`; export CS_RELEASE_SUFX=".$CS_RELEASE"; export CS_RELEASE_PATH="/$CS_RELEASE"; echo "Release: $CS_RELEASE" >&2; }
+[ "$CS_RELEASE" == development -a -z "$OPI_SANDBOX" ] && echo "you're setup for development but the onprem-install sandbox is not loaded" && exit 1
 
-# installation-branch determines which branch of onprem-install to use when downloading files (master or beta)
+## installation-branch determines which branch of onprem-install to use when downloading files (master or beta)
 [ -f $CS_ROOT/installation-branch ] && { export CS_INSTALLATION_BRANCH="`cat $CS_ROOT/installation-branch`"; echo "Installation branch: $CS_INSTALLATION_BRANCH" >&2; } || export CS_INSTALLATION_BRANCH="master"
 
-# product type
+## product type
 [ -f $CS_ROOT/product-type ] && export CS_PRODUCT_TYPE=`cat $CS_ROOT/product-type` || export CS_PRODUCT_TYPE="Single $(system_type) Host"
 
-# mongo server
-# [ -z "$CS_MONGO_URL" ] && { [ -f $CS_ROOT/mongo.url ] && export CS_MONGO_URL=`cat $CS_ROOT/mongo.url` || export CS_MONGO_URL="mongodb://localhost/codestream"; }
+## mongo server
+## [ -z "$CS_MONGO_URL" ] && { [ -f $CS_ROOT/mongo.url ] && export CS_MONGO_URL=`cat $CS_ROOT/mongo.url` || export CS_MONGO_URL="mongodb://localhost/codestream"; }
 if [ -z "$CS_MONGO_URL" ]; then
 	if [ -f $CS_ROOT/mongo.url ]; then
 		export CS_MONGO_URL=`cat $CS_ROOT/mongo.url`
@@ -943,14 +1212,14 @@ if [ -z "$CS_MONGO_URL" ]; then
 	fi
 fi
 
-# Admin server
+## Admin server
 [ -f $CS_ROOT/mongo.url ] && export CS_USE_ADMIN=1 || export CS_USE_ADMIN=0
 [ $CS_USE_ADMIN -eq 1 ] && export CS_CONTAINERS="$CS_CONTAINERS csadmin"
 
-# touch mongo.off if user provided mongodb server (no mongo docker container)
+## touch mongo.off if user provided mongodb server (no mongo docker container)
 [ -f $CS_ROOT/mongo.off ] && export CS_RUN_MONGO=0 || export CS_RUN_MONGO=1
 
-[ -n "$OPI_TOP" -a -d "$OPI_TOP/install-scripts" ] && export CS_OPI_SANDBOX=1 || export CS_OPI_SANDBOX=0
+## [ -n "$OPI_TOP" -a -d "$OPI_TOP/install-scripts" ] && export CS_OPI_SANDBOX=1 || export CS_OPI_SANDBOX=0
 
 ### ------ Checkout this host system for compatibility
 check_env || exit 1
@@ -985,13 +1254,13 @@ load_container_versions
 
 [ "$1" == "-a" ] && echo -e "\nThe -a option is no longer avaiable.\n" && usage
 [ "$1" == "--status" ] && shift && { docker_status auth; exit; }
-[ "$1" == "--start" ] && shift && { start_containers "$@"; sleep 1; docker_status; exit; }
-[ "$1" == "--stop" ] && shift && { stop_containers "$@"; exit; }
-[ "$1" == "--restart" ] && shift && { stop_containers "$@"; sleep 1; start_containers "$@"; sleep 1; docker_status; exit; }
-[ "$1" == "--reset" ] && shift && { stop_containers "$@"; sleep 1; remove_containers "$@"; exit; }
+[ "$1" == "--start" ] && shift && { start_services "$@"; sleep 1; docker_status; exit; }
+[ "$1" == "--stop" ] && shift && { stop_services "$@"; exit; }
+[ "$1" == "--restart" ] && shift && { restart_services "$@"; sleep 1; docker_status; exit; }
+[ "$1" == "--reset" ] && shift && { reset_services "$@"; exit; }
 [ "$1" == "--start-mongo" ] && shift && { run_or_start_container csmongo; sleep 2; docker_status; exit; }
 
-# undocumented - know what you're doing!!
+## undocumented - know what you're doing!!
 [ "$1" == "--run" ] && shift && { [ -n "$1" ] && run_or_start_container "$@" || echo "container name required"; exit $?; }
 [ "$1" == "--reset-some" ] && shift && { [ -n "$1" ] && { stop_containers "" "$@"; remove_containers "" "$@"; } || echo "container name(s) required"; exit $?; }
 [ "$1" == "--replace" ] && shift && { $0 --reset-some "$@"; $0 --run "$@"; exit $?; }
