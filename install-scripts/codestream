@@ -904,14 +904,7 @@ function quickstart {
 	local _x
 	local apiEnv=""
 	# FIXME: would be better if we did not hard code /opt/api/
-	if [ "$CS_PRODUCT_TYPE" == "Single Linux Host" ]; then
-		export CS_API_DEFAULT_CFG_FILE=/opt/api/codestream-server/api_server/etc/configs/onprem-slh-quickstart.json
-	elif [ "$CS_PRODUCT_TYPE" == "Single Mac Host" ]; then
-		export CS_API_DEFAULT_CFG_FILE=/opt/api/codestream-server/api_server/etc/configs/onprem-smh-quickstart.json
-	else
-		echo "Unknown product type ($CS_PRODUCT_TYPE)"
-		exit 1
-	fi
+	export CS_API_DEFAULT_CFG_FILE=/opt/api/codestream-server/api_server/etc/configs/onprem-quickstart.json
 	while [ $# -gt 0 ]
 	do
 		case $1 in
@@ -1228,6 +1221,7 @@ check_env || exit 1
 
 ### ------ Start parsing command line options
 [ "$1" == "--help" -o -z "$1" ] && usage
+[ "$1" == "--status" ] && shift && { docker_status auth; exit; }
 [ "$1" == "--quickstart" ] && { shift && quickstart "$@"; exit $?; }
 [ "$1" == "--update-myself" ] && update_myself
 [ ! -f $CS_ROOT/container-versions ] && echo "CodeStream On-Prem not installed" && exit 1
@@ -1253,7 +1247,6 @@ load_container_versions
 [ "$1" == "--cfg-tool" ] && shift && { mongo_config_tool "$@"; exit $?; }
 
 [ "$1" == "-a" ] && echo -e "\nThe -a option is no longer avaiable.\n" && usage
-[ "$1" == "--status" ] && shift && { docker_status auth; exit; }
 [ "$1" == "--start" ] && shift && { start_services "$@"; sleep 1; docker_status; exit; }
 [ "$1" == "--stop" ] && shift && { stop_services "$@"; exit; }
 [ "$1" == "--restart" ] && shift && { restart_services "$@"; sleep 1; docker_status; exit; }
