@@ -68,7 +68,7 @@ function reset_dev_env {
 	cd $CS_ROOT || exit 1
 	./codestream --reset
 	[ `docker volume ls | wc -l` -gt 1 ] &&	docker volume rm $(docker volume ls | awk '{print $2}' | grep -v VOL)
-	/bin/rm -f terms.txt mongo.url .status-urls .tos-agreed product-type container-versions compose.yaml compose.yaml.template
+	/bin/rm -f terms.txt mongo.url .status-urls .tos-agreed product-type container-versions compose.yaml compose.yaml.template docker-compose
 	[ -L ./util ] && /bin/rm ./util
 	[ -d ./util ] && /bin/rm -rf ./util
 	yesno "Remove all images (y/N)? " no || docker rmi $(docker images|awk '{print $3}'|grep -v IMA)
@@ -756,8 +756,8 @@ function remove_containers {
 #   returns:
 #         none
 function start_compose {
-	[ $CS_DEBUG_MODE -eq 1 ] && echo docker-compose -p codestream -f $CS_ROOT/compose.yaml up --detach
-	docker-compose -p codestream -f $CS_ROOT/compose.yaml up --detach
+	[ $CS_DEBUG_MODE -eq 1 ] && echo $CS_ROOT/docker-compose -p codestream -f $CS_ROOT/compose.yaml up --detach
+	$CS_ROOT/docker-compose -p codestream -f $CS_ROOT/compose.yaml up --detach
 }
 
 # 
@@ -766,8 +766,8 @@ function start_compose {
 #   returns:
 #         none
 function stop_compose {
-	[ $CS_DEBUG_MODE -eq 1 ] && echo docker-compose -p codestream -f $CS_ROOT/compose.yaml stop
-	docker-compose -p codestream -f $CS_ROOT/compose.yaml stop
+	[ $CS_DEBUG_MODE -eq 1 ] && echo $CS_ROOT/docker-compose -p codestream -f $CS_ROOT/compose.yaml stop
+	$CS_ROOT/docker-compose -p codestream -f $CS_ROOT/compose.yaml stop
 }
 
 # 
@@ -776,8 +776,8 @@ function stop_compose {
 #   returns:
 #         none
 function restart_compose {
-	[ $CS_DEBUG_MODE -eq 1 ] && echo docker-compose -p codestream -f $CS_ROOT/compose.yaml restart
-	docker-compose -p codestream -f $CS_ROOT/compose.yaml restart
+	[ $CS_DEBUG_MODE -eq 1 ] && echo $CS_ROOT/docker-compose -p codestream -f $CS_ROOT/compose.yaml restart
+	$CS_ROOT/docker-compose -p codestream -f $CS_ROOT/compose.yaml restart
 }
 
 # 
@@ -786,8 +786,8 @@ function restart_compose {
 #   returns:
 #         none
 function down_compose {
-	[ $CS_DEBUG_MODE -eq 1 ] && echo docker-compose -p codestream -f $CS_ROOT/compose.yaml down
-	docker-compose -p codestream -f $CS_ROOT/compose.yaml down
+	[ $CS_DEBUG_MODE -eq 1 ] && echo $CS_ROOT/docker-compose -p codestream -f $CS_ROOT/compose.yaml down
+	$CS_ROOT/docker-compose -p codestream -f $CS_ROOT/compose.yaml down
 }
 
 
