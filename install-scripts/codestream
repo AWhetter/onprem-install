@@ -15,7 +15,7 @@ Usage:
     https//docs.codestream.com/onprem/
 
   QuickStart
-    $cmd --quickstart [--topology { hostname | ip }] \\
+    $cmd --quickstart [--topology { hostname | ip }] [--compose] [--agree-to-terms] \\
                             [--public-host <hostname-or-ip>] \\
                             [--api-port <port>] [--bcast-port <port>] [--admin-port <port>] \\
                             [--mongo-url <url>]
@@ -864,6 +864,20 @@ function load_docker_containers_from_package {
 # # Installation
 # ###########################################################
 
+# 
+# install_docker_compose()
+#   desc: install the docker-compose script
+#   returns:
+#         0  success
+#         1  fail
+function install_docker_compose {
+	[ -x $CS_ROOT/docker-compose ] && return 0
+	local dockerComposeVer=1.29.1
+	curl -L https://github.com/docker/compose/releases/download/$dockerComposeVer/docker-compose-`uname -s`-`uname -m` -o $CS_ROOT/docker-compose || { echo "download of docker-docker compose failed" && return 1; }
+	chmod +x $CS_ROOT/docker-compose || return 1
+	return 0
+}
+
 # display our terms of service and require user to agree.
 # returns 0 if they do agree, 1 otherwise
 function accept_tos {
@@ -944,6 +958,8 @@ function quickstart {
 If this is not what you want, press CTRL-C and specify additional options along with --quickstart
 "
 	[ $interactive -eq 1 ] && { echo -n "Press ENTER to continue..." && read _x; } || echo "interactive mode disabled...continuing..."
+
+	[ "$CS_PRODUCT_TYPE" == "Docker Compose" ] && { install_docker_compose || exit 1; }
 
 	echo $CS_PRODUCT_TYPE >$CS_ROOT/product-type
 
