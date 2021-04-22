@@ -1,5 +1,17 @@
 # Change Log
 
+## [8.2.24] - 2021-4-22
+
+### Changed
+
+- Backend work to support team switching when you click on a permalink for an item owned by a team other than the one you currently have selected
+
+### Fixed 
+
+- Fixes an issue where the issue you select via Start Work in one team, also appears in the Work In Progress section for all of your teams
+- Fixes an issue with "undefined" appearing in some notification emails
+- Fixes an issue with weekly activity emails going out when there was no activity
+
 ## [8.2.23] - 2021-4-6
 
 ### Changed
