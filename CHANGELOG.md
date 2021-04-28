@@ -1,5 +1,16 @@
 # Change Log
 
+## [8.2.25] - 2021-4-28
+
+### Fixed 
+
+- Fixes an issue with the broadcaster connection
+- Fixes an issue with large change sets in a feedback request not being saved to the database
+
+### Changed
+
+- Improved copy in ivitations triggered by a proactive review of someone else's commit
+
 ## [8.2.24] - 2021-4-22
 
 ### Changed
