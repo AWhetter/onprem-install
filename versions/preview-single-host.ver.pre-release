@@ -1,8 +1,8 @@
-apiDockerVersion=8.2.38-216
-broadcasterDockerVersion=8.2.36-85
-dtPython3DockerVersion=0.0.0
-mailoutDockerVersion=8.2.35-87
-mongoDockerVersion=3.4.9
-onPremVersion=8.2.25
-opadmDockerVersion=8.2.12-21
-rabbitDockerVersion=0.0.0
+apiDockerVersion="8.2.38-216"
+broadcasterDockerVersion="8.2.36-85"
+dtPython3DockerVersion="0.0.0"
+mailoutDockerVersion="8.2.36-88"
+mongoDockerVersion="3.4.9"
+onPremVersion="8.2.25"
+opadmDockerVersion="8.2.12-21"
+rabbitDockerVersion="0.0.0"
